@@ -247,7 +247,7 @@ app.post('/login', async (req, res) => {
 
 // Middleware to fetch user
 const fetchUser = async (req, res, next) => {
-    const token = req.header('auth-token');
+      const token = req.header('auth-token') || req.header('token') || req.body.token || req.query.token;
     if (!token) {
         return res.status(401).send({ errors: 'Please authenticate using a valid token' });
     }
