@@ -373,7 +373,7 @@ const MerchantSchema = new mongoose.Schema({
   province: { type: String, required: true },
   city: { type: String, required: true },
   serviceType: { type: String, required: true },
-  serviceImage: { type: String },
+  serviceImage: { type: String,required: false  },
    orders: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Order'
@@ -387,10 +387,14 @@ const Merchant = mongoose.model('Merchant', MerchantSchema);
 const tempMerchants = {}; // In-memory store for signup OTPs
 const forgotPasswordMerchantOtps = {}; // Store OTPs for password reset
 
-app.post('/merchant/signup', async (req, res) => {
+app.post('/merchant/signup', upload.single('image'), async (req, res) => {
   try {
-    const { firstName, lastName, email, password, companyName, address, province, city, serviceType } = req.body;
+    const {
+      firstName, lastName, email, password,
+      companyName, address, province, city, serviceType
+    } = req.body;
 
+    // Basic validation
     if (!firstName || !lastName || !email || !password || !companyName || !address || !province || !city || !serviceType) {
       return res.status(400).json({ success: false, errors: "All fields are required." });
     }
@@ -400,8 +404,16 @@ app.post('/merchant/signup', async (req, res) => {
       return res.status(400).json({ success: false, errors: "Email already registered." });
     }
 
+    // Upload image to Cloudinary
+    let serviceImageUrl = '';
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path);
+      serviceImageUrl = result.secure_url;
+    }
+
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
+    // Save to temp store
     tempMerchants[email] = {
       firstName,
       lastName,
@@ -412,10 +424,12 @@ app.post('/merchant/signup', async (req, res) => {
       province,
       city,
       serviceType,
+      serviceImage: serviceImageUrl,
       otp,
       createdAt: Date.now(),
     };
 
+    // Send OTP email
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -442,9 +456,10 @@ app.post('/merchant/signup', async (req, res) => {
 
   } catch (error) {
     console.error("Merchant Signup Error:", error);
-    res.status(500).json({ error: "Merchant signup failed." });
+    res.status(500).json({ success: false, error: "Merchant signup failed." });
   }
 });
+
 
 app.post('/merchant/verify-otp', async (req, res) => {
   try {
