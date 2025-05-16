@@ -568,17 +568,25 @@ app.post('/merchant/login', async (req, res) => {
 });
 
 const fetchMerchant = async (req, res, next) => {
-    const token = req.header('merchant-auth-token');
-    if (!token) {
-        return res.status(401).send({ errors: 'Please authenticate using a valid merchant token' });
+  const token = req.header('merchant-auth-token');
+  if (!token) {
+    return res.status(401).json({ errors: 'Please authenticate using a valid merchant token' });
+  }
+
+  try {
+    const data = jwt.verify(token, 'secret_doord_merchant_key');
+    const merchant = await Merchant.findById(data.merchant.id); // 🔍 Fetch full merchant
+
+    if (!merchant) {
+      return res.status(404).json({ errors: 'Merchant not found' });
     }
-    try {
-        const data = jwt.verify(token, 'secret_doord_merchant_key');
-        req.merchant = data.merchant;
-        next();
-    } catch (error) {
-        res.status(401).send({ errors: "Please authenticate using a valid merchant token" });
-    }
+
+    req.merchant = merchant;
+    next();
+  } catch (error) {
+    console.error("Auth Error:", error.message);
+    res.status(401).json({ errors: 'Invalid token' });
+  }
 };
 
 app.post('/merchant/forgot-password', async (req, res) => {
