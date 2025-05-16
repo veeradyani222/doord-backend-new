@@ -835,7 +835,124 @@ app.post('/addOrder', fetchUser, async (req, res) => {
   }
 });
 
+app.get('/getOrder/:_id', fetchUser, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params._id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
+// Get all orders
+app.get('/getAllOrders', async (req, res) => {
+  try {
+    const orders = await Order.find().sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update order (any field)
+app.put('/updateOrder/:_id', fetchUser, async (req, res) => {
+  try {
+    const order = await Order.findByIdAndUpdate(
+      req.params._id,
+      { $set: req.body },
+      { new: true }
+    );
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// USER ROUTES
+
+// Get user by token
+app.get('/getUser', fetchUser, async (req, res) => {
+  res.json(req.user);
+});
+
+// Get user by email
+app.get('/getUser/:email', async (req, res) => {
+  try {
+    const user = await User.findOne({ email: req.params.email });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update user (any field)
+app.put('/updateUser', fetchUser, async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: req.body },
+      { new: true }
+    );
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get all users
+app.get('/getAllUsers', async (req, res) => {
+  try {
+    const users = await User.find().sort({ createdAt: -1 });
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// MERCHANT ROUTES
+
+// Get merchant by token
+app.get('/getMerchant', fetchMerchant, async (req, res) => {
+  res.json(req.merchant);
+});
+
+// Get merchant by email
+app.get('/getMerchant/:email', async (req, res) => {
+  try {
+    const merchant = await Merchant.findOne({ email: req.params.email });
+    if (!merchant) return res.status(404).json({ error: 'Merchant not found' });
+    res.json(merchant);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update merchant (any field)
+app.put('/updateMerchant', fetchMerchant, async (req, res) => {
+  try {
+    const merchant = await Merchant.findByIdAndUpdate(
+      req.merchant._id,
+      { $set: req.body },
+      { new: true }
+    );
+    res.json(merchant);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get all merchants
+app.get('/getAllMerchants', async (req, res) => {
+  try {
+    const merchants = await Merchant.find().sort({ createdAt: -1 });
+    res.json(merchants);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // Start the server
 app.listen(port, (error) => {
