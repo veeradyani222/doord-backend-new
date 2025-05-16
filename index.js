@@ -222,21 +222,29 @@ app.post('/verify-otp', async (req, res) => {
 app.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-
     const user = await Users.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ success: false, errors: "Wrong Email ID" });
-    }
+    
+    if (!user) return res.status(400).json({ success: false, errors: "Wrong Email ID" });
+    if (password !== user.password) return res.status(400).json({ success: false, errors: "Wrong Password" });
 
-    // In production, use bcrypt.compare
-    if (password !== user.password) {
-      return res.status(400).json({ success: false, errors: "Wrong Password" });
-    }
-
-    const data = { user: { id: user.id } };
-    const token = jwt.sign(data, 'secret_doord_key', { expiresIn: '730h' });
-
-    res.json({ success: true, token });
+    // Include both _id AND email in the token
+    const tokenData = { 
+      user: { 
+        _id: user._id,  // Using _id instead of id
+        email: user.email
+      } 
+    };
+    
+    const token = jwt.sign(tokenData, 'secret_doord_key', { expiresIn: '730h' });
+    res.json({ 
+      success: true, 
+      token,
+      user: {
+        _id: user._id,
+        email: user.email,
+        name: user.name
+      }
+    });
 
   } catch (error) {
     console.error("Login Error:", error);
@@ -244,20 +252,44 @@ app.post('/login', async (req, res) => {
   }
 });
 
-
 // Middleware to fetch user
 const fetchUser = async (req, res, next) => {
-      const token = req.header('auth-token') || req.header('token') || req.body.token || req.query.token;
+  try {
+    // Get token from header
+    const token = req.header('auth-token');
     if (!token) {
-        return res.status(401).send({ errors: 'Please authenticate using a valid token' });
+      return res.status(401).json({ 
+        success: false,
+        errors: 'No token provided. Please authenticate.' 
+      });
     }
-    try {
-        const data = jwt.verify(token, 'secret_ecom');
-        req.user = data.user;
-        next();
-    } catch (error) {
-        res.status(401).send({ errors: "Please authenticate using a valid token" });
+
+    // Verify token
+    const decoded = jwt.verify(token, 'secret_doord_key');
+    
+    // Check token structure
+    if (!decoded.user || !decoded.user._id || !decoded.user.email) {
+      return res.status(401).json({ 
+        success: false,
+        errors: 'Invalid token structure' 
+      });
     }
+
+    // Attach user data to request
+    req.user = {
+      _id: decoded.user._id,
+      email: decoded.user.email
+    };
+
+    next();
+  } catch (error) {
+    console.error("Authentication Error:", error.message);
+    res.status(401).json({ 
+      success: false,
+      errors: 'Invalid token. Please authenticate again.',
+      details: error.message
+    });
+  }
 };
 
 //FORGOT USER
@@ -716,6 +748,22 @@ module.exports = mongoose.model('Order', OrderSchema);
 
 app.post('/addOrder', fetchUser, async (req, res) => {
   try {
+    // Destructure required fields
+    const requiredFields = [
+      'serviceName', 'email', 'phone', 'orgName', 
+      'scheduledTime', 'businessName', 'merchant_email'
+    ];
+    
+    // Validate all required fields
+    const missingFields = requiredFields.filter(field => !req.body[field]);
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        errors: 'Missing required fields',
+        missingFields
+      });
+    }
+
     const {
       serviceName,
       email,
@@ -729,15 +777,13 @@ app.post('/addOrder', fetchUser, async (req, res) => {
       paymentPaid
     } = req.body;
 
-    // Validate required fields
-    if (!serviceName || !email || !phone || !orgName || !scheduledTime || !businessName || !merchant_email) {
-      return res.status(400).json({ errors: 'Missing required fields' });
-    }
-
     // Check if merchant exists
     const merchant = await Merchant.findOne({ email: merchant_email });
     if (!merchant) {
-      return res.status(404).json({ errors: 'Merchant not found' });
+      return res.status(404).json({ 
+        success: false,
+        errors: 'Merchant not found' 
+      });
     }
 
     // Create new order
@@ -747,11 +793,11 @@ app.post('/addOrder', fetchUser, async (req, res) => {
       phone,
       orgName,
       scheduledTime,
-      websiteAddress,
-      masterCard,
+      websiteAddress: websiteAddress || '',
+      masterCard: masterCard || '',
       businessName,
       paymentStatus: paymentPaid ? 'paid' : 'unpaid',
-      paymentPaid,
+      paymentPaid: paymentPaid || '',
       user_email: req.user.email, // From authenticated user
       merchant_email
     });
@@ -759,23 +805,32 @@ app.post('/addOrder', fetchUser, async (req, res) => {
     // Save the order
     const savedOrder = await newOrder.save();
 
-    // Add order reference to user
-    await User.findOneAndUpdate(
-      { email: req.user.email },
+    // Update user's orders array
+    await Users.findByIdAndUpdate(
+      req.user._id,
       { $push: { orders: savedOrder._id } }
     );
 
-    // Add order reference to merchant
+    // Update merchant's orders array
     await Merchant.findOneAndUpdate(
       { email: merchant_email },
       { $push: { orders: savedOrder._id } }
     );
 
-    res.json(savedOrder);
+    // Successful response
+    res.json({
+      success: true,
+      order: savedOrder,
+      message: 'Order created successfully'
+    });
 
   } catch (error) {
-    console.error(error.message);
-    res.status(500).send('Server error');
+    console.error("Order Creation Error:", error.message);
+    res.status(500).json({
+      success: false,
+      errors: 'Server error during order creation',
+      details: error.message
+    });
   }
 });
 
