@@ -254,41 +254,27 @@ app.post('/login', async (req, res) => {
 
 // Middleware to fetch user
 const fetchUser = async (req, res, next) => {
+  const token = req.header('auth-token');
+  if (!token) return res.status(401).json({ error: 'Please authenticate' });
+
   try {
-    // Get token from header
-    const token = req.header('auth-token');
-    if (!token) {
-      return res.status(401).json({ 
-        success: false,
-        errors: 'No token provided. Please authenticate.' 
-      });
-    }
-
-    // Verify token
-    const decoded = jwt.verify(token, 'secret_doord_key');
+    // 1. Verify token
+    const data = jwt.verify(token, 'secret_doord_key');
     
-    // Check token structure
-    if (!decoded.user || !decoded.user._id || !decoded.user.email) {
-      return res.status(401).json({ 
-        success: false,
-        errors: 'Invalid token structure' 
-      });
+    // 2. Fetch COMPLETE user document from database
+    const user = await Users.findById(data.user._id)
+      .select('-password -verificationCode'); // Exclude sensitive fields
+    
+    if (!user) {
+      return res.status(401).json({ error: "User not found" });
     }
 
-    // Attach user data to request
-    req.user = {
-      _id: decoded.user._id,
-      email: decoded.user.email
-    };
-
+    // 3. Attach full user document to request
+    req.user = user;
     next();
+    
   } catch (error) {
-    console.error("Authentication Error:", error.message);
-    res.status(401).json({ 
-      success: false,
-      errors: 'Invalid token. Please authenticate again.',
-      details: error.message
-    });
+    res.status(401).json({ error: "Invalid token" });
   }
 };
 
@@ -856,19 +842,25 @@ app.get('/getAllOrders', async (req, res) => {
 });
 
 // Update order (any field)
-app.put('/updateOrder/:_id', fetchUser, async (req, res) => {
+app.put('/updateOrder/:_id', async (req, res) => {
   try {
     const order = await Order.findByIdAndUpdate(
       req.params._id,
       { $set: req.body },
-      { new: true }
+      { new: true, runValidators: true }
     );
-    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
     res.json(order);
   } catch (error) {
+    console.error("Update Order Error:", error.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 // USER ROUTES
 
@@ -878,15 +870,20 @@ app.get('/getUser', fetchUser, async (req, res) => {
 });
 
 // Get user by email
-app.get('/getUser/:email', async (req, res) => {
+app.post('/getUser', async (req, res) => {
   try {
-    const user = await Users.findOne({ email: req.params.email });
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+
+    const user = await Users.findOne({ email });
     if (!user) return res.status(404).json({ error: 'User not found' });
+
     res.json(user);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 // Update user (any field)
 app.put('/updateUser', fetchUser, async (req, res) => {
@@ -920,15 +917,20 @@ app.get('/getMerchant', fetchMerchant, async (req, res) => {
 });
 
 // Get merchant by email
-app.get('/getMerchant/:email', async (req, res) => {
+app.post('/getMerchant', async (req, res) => {
   try {
-    const merchant = await Merchant.findOne({ email: req.params.email });
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+
+    const merchant = await Merchant.findOne({ email });
     if (!merchant) return res.status(404).json({ error: 'Merchant not found' });
+
     res.json(merchant);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 // Update merchant (any field)
 app.put('/updateMerchant', fetchMerchant, async (req, res) => {
