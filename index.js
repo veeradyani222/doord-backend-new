@@ -743,7 +743,8 @@ const OrderSchema = new mongoose.Schema({
   }
 });
 
-module.exports = mongoose.model('Order', OrderSchema);
+
+const Order = mongoose.model('Order', OrderSchema);
 
 
 app.post('/addOrder', fetchUser, async (req, res) => {
