@@ -880,7 +880,7 @@ app.get('/getUser', fetchUser, async (req, res) => {
 // Get user by email
 app.get('/getUser/:email', async (req, res) => {
   try {
-    const user = await User.findOne({ email: req.params.email });
+    const user = await Users.findOne({ email: req.params.email });
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user);
   } catch (error) {
@@ -891,7 +891,7 @@ app.get('/getUser/:email', async (req, res) => {
 // Update user (any field)
 app.put('/updateUser', fetchUser, async (req, res) => {
   try {
-    const user = await User.findByIdAndUpdate(
+    const user = await Users.findByIdAndUpdate(
       req.user._id,
       { $set: req.body },
       { new: true }
@@ -905,7 +905,7 @@ app.put('/updateUser', fetchUser, async (req, res) => {
 // Get all users
 app.get('/getAllUsers', async (req, res) => {
   try {
-    const users = await User.find().sort({ createdAt: -1 });
+    const users = await Users.find().sort({ createdAt: -1 });
     res.json(users);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
