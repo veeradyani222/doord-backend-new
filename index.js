@@ -112,9 +112,9 @@ const tempUsers = {}; // In-memory store for signup OTPs
 // Signup endpoint
 app.post('/signup', async (req, res) => {
   try {
-    const { name, email, password, dateOfBirth } = req.body;
+    const { name, email, password} = req.body;
 
-    if (!name || !email || !password || !dateOfBirth) {
+    if (!name || !email || !password ) {
       return res.status(400).json({ success: false, errors: "All fields are required." });
     }
 
@@ -130,7 +130,6 @@ app.post('/signup', async (req, res) => {
       email,
       password,
       otp,
-      dateOfBirth,
       createdAt: Date.now(),
     };
 
