@@ -1098,59 +1098,147 @@ app.get('/merchant/my-reports', fetchMerchant, async (req, res) => {
 
 app.get('/reports-by-email', async (req, res) => {
   try {
-    const { email } = req.query;
-    if (!email) return res.status(400).json({ error: "Email parameter required" });
+    const { email } = req.body;
+    
+    // Validate email exists in body
+    if (!email) {
+      return res.status(400).json({ 
+        success: false,
+        error: "Email is required in request body" 
+      });
+    }
 
-    const reports = await ReportsAndIssues.find({ email });
-    res.json({ success: true, reports });
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid email format"
+      });
+    }
+
+    const reports = await ReportsAndIssues.find({ 
+      $or: [
+        { email: email },
+        { reporter_email: email }
+      ]
+    }).sort({ createdAt: -1 });
+
+    if (reports.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No reports found for this email"
+      });
+    }
+
+    res.json({ 
+      success: true,
+      count: reports.length,
+      reports 
+    });
+
   } catch (error) {
     console.error("Get Reports by Email Error:", error);
-    res.status(500).json({ error: "Failed to fetch reports" });
+    res.status(500).json({ 
+      success: false,
+      error: "Failed to fetch reports",
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
+
 app.patch('/update-report', async (req, res) => {
   try {
-    const { email, reportId, updates } = req.body;
-    
-    // Verify report belongs to the email
-    const report = await ReportsAndIssues.findOne({ _id: reportId, email });
-    if (!report) return res.status(404).json({ error: "Report not found or access denied" });
+    const { email, updates } = req.body;
 
-    // Prevent changing reporter details
-    const { reporterType, reporterId, reporter_email, ...validUpdates } = updates;
-    const updatedReport = await ReportsAndIssues.findByIdAndUpdate(
-      reportId,
-      validUpdates,
+    // Validate required fields
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: "Email is required in request body"
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid email format"
+      });
+    }
+
+    // Prevent changing protected fields
+    const protectedFields = ['reporterType', 'reporterId', 'reporter_email', 'email'];
+    const updateFields = Object.keys(updates || {});
+    
+    const hasProtectedField = updateFields.some(field => 
+      protectedFields.includes(field)
+    );
+    
+    if (hasProtectedField) {
+      return res.status(403).json({
+        success: false,
+        error: "Cannot modify protected fields"
+      });
+    }
+
+    // Update all reports matching the email
+    const result = await ReportsAndIssues.updateMany(
+      { 
+        $or: [
+          { email: email },
+          { reporter_email: email }
+        ]
+      },
+      updates,
       { new: true }
     );
 
-    res.json({ success: true, report: updatedReport });
+    if (result.matchedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No reports found for this email"
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `${result.modifiedCount} report(s) updated successfully`,
+      updatedCount: result.modifiedCount
+    });
+
   } catch (error) {
     console.error("Update Report Error:", error);
-    res.status(500).json({ error: "Failed to update report" });
+    res.status(500).json({
+      success: false,
+      error: "Failed to update reports",
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
 app.get('/all-reports', async (req, res) => {
   try {
-    // In production, add admin authentication here
-    const { status, reporterType } = req.query;
-    const filter = {};
-    
-    if (status) filter.reportStatus = status;
-    if (reporterType) filter.reporterType = reporterType;
+    const reports = await ReportsAndIssues.find()
+      .sort({ createdAt: -1 }) // Newest first
+      .lean(); // Convert to plain JS objects
 
-    const reports = await ReportsAndIssues.find(filter)
-      .sort({ createdAt: -1 });
-
-    res.json({ success: true, reports });
+    res.json({
+      success: true,
+      count: reports.length,
+      reports
+    });
   } catch (error) {
     console.error("Get All Reports Error:", error);
-    res.status(500).json({ error: "Failed to fetch reports" });
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch reports",
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
-
 
 // Start the server
 app.listen(port, (error) => {
