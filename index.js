@@ -104,6 +104,13 @@ const Users = mongoose.model('Users', new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Order'
   }],
+  reportsAndIssues: {
+  type: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ReportsAndIssues'
+  }],
+  default: [] // Add this default value
+},
   Date: { type: Date, default: Date.now }
 }));
 
@@ -396,6 +403,13 @@ const MerchantSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Order'
   }],
+  reportsAndIssues: {
+  type: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ReportsAndIssues'
+  }],
+  default: [] // Add this default value
+},
   twoFactorAuth: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
