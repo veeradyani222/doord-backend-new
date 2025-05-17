@@ -974,13 +974,11 @@ const ReportsAndIssuesSchema = new mongoose.Schema({
   description: { type: String, required: true },
   reportStatus: { 
     type: String, 
-    enum: ['Pending', 'In Progress', 'Resolved', 'Rejected'],
     default: 'Pending'
   },
   attachment: { type: String },
   reporterType: { 
-    type: String, 
-    enum: ['User', 'Merchant'],
+    type: String,
     required: true 
   },
   reporterId: { 
