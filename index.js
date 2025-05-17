@@ -1150,27 +1150,26 @@ app.get('/reports-by-email', async (req, res) => {
 
 app.patch('/update-report', async (req, res) => {
   try {
-    const { email, updates } = req.body;
+    const { reportId, updates } = req.body;
 
     // Validate required fields
-    if (!email) {
-      return res.status(400).json({
+    if (!reportId) {
+      return res.status(400).json({ 
         success: false,
-        error: "Email is required in request body"
+        error: "reportId is required in request body" 
       });
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    // Validate reportId format
+    if (!mongoose.Types.ObjectId.isValid(reportId)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid email format"
+        error: "Invalid report ID format"
       });
     }
 
     // Prevent changing protected fields
-    const protectedFields = ['reporterType', 'reporterId', 'reporter_email', 'email'];
+    const protectedFields = ['reporterType', 'reporterId', 'reporter_email', 'email', '_id'];
     const updateFields = Object.keys(updates || {});
     
     const hasProtectedField = updateFields.some(field => 
@@ -1184,36 +1183,31 @@ app.patch('/update-report', async (req, res) => {
       });
     }
 
-    // Update all reports matching the email
-    const result = await ReportsAndIssues.updateMany(
-      { 
-        $or: [
-          { email: email },
-          { reporter_email: email }
-        ]
-      },
+    // Update the specific report by ID
+    const updatedReport = await ReportsAndIssues.findByIdAndUpdate(
+      reportId,
       updates,
-      { new: true }
+      { new: true, runValidators: true }
     );
 
-    if (result.matchedCount === 0) {
+    if (!updatedReport) {
       return res.status(404).json({
         success: false,
-        message: "No reports found for this email"
+        error: "Report not found"
       });
     }
 
     res.json({
       success: true,
-      message: `${result.modifiedCount} report(s) updated successfully`,
-      updatedCount: result.modifiedCount
+      message: "Report updated successfully",
+      report: updatedReport
     });
 
   } catch (error) {
     console.error("Update Report Error:", error);
     res.status(500).json({
       success: false,
-      error: "Failed to update reports",
+      error: "Failed to update report",
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
