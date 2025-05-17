@@ -964,6 +964,182 @@ app.get('/getAllMerchants', async (req, res) => {
   }
 });
 
+//REPORTS AND ISSUES
+const ReportsAndIssuesSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true }, // Main contact email
+  orderId: { type: String, required: true },
+  date: { type: Date, default: Date.now },
+  issueType: { type: String, required: true },
+  description: { type: String, required: true },
+  reportStatus: { 
+    type: String, 
+    enum: ['Pending', 'In Progress', 'Resolved', 'Rejected'],
+    default: 'Pending'
+  },
+  attachment: { type: String },
+  reporterType: { 
+    type: String, 
+    enum: ['User', 'Merchant'],
+    required: true 
+  },
+  reporterId: { 
+    type: mongoose.Schema.Types.ObjectId,
+    required: true,
+    refPath: 'reporterType'
+  },
+  reporter_email: { type: String, required: true }, // Explicit reporter email field
+  createdAt: { type: Date, default: Date.now }
+});
+const ReportsAndIssues = mongoose.model('ReportsAndIssues', ReportsAndIssuesSchema);
+
+// Add Report/Issue for User
+app.post('/add-report', fetchUser, async (req, res) => {
+  try {
+    const { orderId, issueType, description, attachment } = req.body;
+
+    const newReport = new ReportsAndIssues({
+      name: req.user.name,
+      email: req.user.email,
+      orderId,
+      issueType,
+      description,
+      attachment,
+      reporterType: 'User', // Hardcoded for this route
+      reporterId: req.user._id, // User's ObjectId
+      reporter_email: req.user.email
+    });
+
+    await newReport.save();
+
+    // Add to user's reports array
+    req.user.reportsAndIssues.push(newReport._id);
+    await req.user.save();
+
+    res.status(201).json({
+      success: true,
+      message: "User report submitted successfully",
+      report: newReport
+    });
+
+  } catch (error) {
+    console.error("User Report Error:", error);
+    res.status(500).json({ error: "Failed to submit user report" });
+  }
+});
+
+app.post('/merchant/add-report', fetchMerchant, async (req, res) => {
+  try {
+    const { orderId, issueType, description, attachment } = req.body;
+
+    const newReport = new ReportsAndIssues({
+      name: `${req.merchant.firstName} ${req.merchant.lastName}`,
+      email: req.merchant.email,
+      orderId,
+      issueType,
+      description,
+      attachment,
+      reporterType: 'Merchant', // Hardcoded for this route
+      reporterId: req.merchant._id, // Merchant's ObjectId
+      reporter_email: req.merchant.email
+    });
+
+    await newReport.save();
+
+    // Add to merchant's reports array
+    req.merchant.reportsAndIssues.push(newReport._id);
+    await req.merchant.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Merchant report submitted successfully",
+      report: newReport
+    });
+
+  } catch (error) {
+    console.error("Merchant Report Error:", error);
+    res.status(500).json({ error: "Failed to submit merchant report" });
+  }
+});
+
+// For Users
+app.get('/my-reports', fetchUser, async (req, res) => {
+  try {
+    const reports = await ReportsAndIssues.find({ reporterId: req.user._id });
+    res.json({ success: true, reports });
+  } catch (error) {
+    console.error("Get User Reports Error:", error);
+    res.status(500).json({ error: "Failed to fetch reports" });
+  }
+});
+
+// For Merchants
+app.get('/merchant/my-reports', fetchMerchant, async (req, res) => {
+  try {
+    const reports = await ReportsAndIssues.find({ reporterId: req.merchant._id });
+    res.json({ success: true, reports });
+  } catch (error) {
+    console.error("Get Merchant Reports Error:", error);
+    res.status(500).json({ error: "Failed to fetch reports" });
+  }
+});
+
+app.get('/reports-by-email', async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) return res.status(400).json({ error: "Email parameter required" });
+
+    const reports = await ReportsAndIssues.find({ email });
+    res.json({ success: true, reports });
+  } catch (error) {
+    console.error("Get Reports by Email Error:", error);
+    res.status(500).json({ error: "Failed to fetch reports" });
+  }
+});
+
+app.patch('/update-report', async (req, res) => {
+  try {
+    const { email, reportId, updates } = req.body;
+    
+    // Verify report belongs to the email
+    const report = await ReportsAndIssues.findOne({ _id: reportId, email });
+    if (!report) return res.status(404).json({ error: "Report not found or access denied" });
+
+    // Prevent changing reporter details
+    const { reporterType, reporterId, reporter_email, ...validUpdates } = updates;
+    const updatedReport = await ReportsAndIssues.findByIdAndUpdate(
+      reportId,
+      validUpdates,
+      { new: true }
+    );
+
+    res.json({ success: true, report: updatedReport });
+  } catch (error) {
+    console.error("Update Report Error:", error);
+    res.status(500).json({ error: "Failed to update report" });
+  }
+});
+
+app.get('/all-reports', async (req, res) => {
+  try {
+    // In production, add admin authentication here
+    const { status, reporterType } = req.query;
+    const filter = {};
+    
+    if (status) filter.reportStatus = status;
+    if (reporterType) filter.reporterType = reporterType;
+
+    const reports = await ReportsAndIssues.find(filter)
+      .sort({ createdAt: -1 });
+
+    res.json({ success: true, reports });
+  } catch (error) {
+    console.error("Get All Reports Error:", error);
+    res.status(500).json({ error: "Failed to fetch reports" });
+  }
+});
+
+
 // Start the server
 app.listen(port, (error) => {
     if (!error) {
