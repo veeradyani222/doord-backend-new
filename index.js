@@ -401,6 +401,10 @@ const MerchantSchema = new mongoose.Schema({
   companyName: { type: String, required: true },
   address: { type: String, required: true },
   province: { type: String, required: true },
+  currency: { type: String },
+  timeZone: { type: String },
+  notification: { type: String, default: "I send or receive Payment receipt" },
+  twoFactorAuth: { type: Boolean, default: false },
   city: { type: String, required: true },
   serviceType: { type: String, required: true },
   serviceImage: { type: String,required: false  },
@@ -830,13 +834,13 @@ app.post('/addOrder', fetchUser, async (req, res) => {
     // Update user's orders array
     await Users.findByIdAndUpdate(
       req.user._id,
-      { $push: { orders: savedOrder._id } }
+      { $push: { orders: savedOrder} }
     );
 
     // Update merchant's orders array
     await Merchant.findOneAndUpdate(
       { email: merchant_email },
-      { $push: { orders: savedOrder._id } }
+      { $push: { orders: savedOrder } }
     );
 
     // Successful response
