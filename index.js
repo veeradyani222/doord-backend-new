@@ -119,9 +119,9 @@ const tempUsers = {}; // In-memory store for signup OTPs
 // Signup endpoint
 app.post('/signup', async (req, res) => {
   try {
-    const { name, email, password} = req.body;
+    const { name, email, password } = req.body;
 
-    if (!name || !email || !password ) {
+    if (!name || !email || !password) {
       return res.status(400).json({ success: false, errors: "All fields are required." });
     }
 
@@ -130,7 +130,8 @@ app.post('/signup', async (req, res) => {
       return res.status(400).json({ success: false, errors: "Email already registered." });
     }
 
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     tempUsers[email] = {
       name,
@@ -143,13 +144,13 @@ app.post('/signup', async (req, res) => {
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
-        user: process.env.EMAIL_USER, // Use Doord's email here
+        user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
     });
 
     const mailOptions = {
-      from: '"Doord Support" <no-reply@doord.com>', // change as needed
+      from: '"Doord Support" <no-reply@doord.com>',
       to: email,
       subject: 'Verify your email address',
       html: `
@@ -169,8 +170,6 @@ app.post('/signup', async (req, res) => {
     res.status(500).json({ error: "Signup failed." });
   }
 });
-
-// Verify OTP endpoint
 app.post('/verify-otp', async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -187,10 +186,10 @@ app.post('/verify-otp', async (req, res) => {
     const user = new Users({
       name: tempUser.name,
       email: tempUser.email,
-      password: tempUser.password, // Hash this before saving in production
+      password: tempUser.password, // ❗ Hash this in production
       verificationCode: otp,
       isVerified: true,
-      dateOfBirth: new Date(tempUser.dateOfBirth)
+      dateOfBirth: new Date(tempUser.dateOfBirth || Date.now())
     });
 
     await user.save();
@@ -290,69 +289,75 @@ const fetchUser = async (req, res, next) => {
 const forgotPasswordOtps = {}; // Store OTPs in memory temporarily
 
 app.post('/forgot-password', async (req, res) => {
-    const { email } = req.body;
+  const { email } = req.body;
 
-    try {
-        const user = await Users.findOne({ email });
+  try {
+    const user = await Users.findOne({ email });
 
-        if (!user) {
-            return res.status(404).json({ success: false, message: "User with that email not found" });
-        }
-
-        const otp = Math.floor(1000 + Math.random() * 9000).toString();
-        forgotPasswordOtps[email] = { otp, createdAt: Date.now() };
-
-        // Email setup
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
-            },
-        });
-
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: email,
-            subject: 'Forgot Password OTP - W Ever Classes',
-            html: `
-                <h2>Hello ${user.name || ''},</h2>
-                <p>Your OTP to reset your password is: <strong>${otp}</strong></p>
-                <p>This OTP is valid for 10 minutes.</p>
-                <footer><p>Best Regards,<br/>W Ever Classes Team</p></footer>
-            `,
-        };
-
-        await transporter.sendMail(mailOptions);
-
-        res.json({ success: true, message: "OTP sent to email" });
-
-    } catch (error) {
-        console.error("Forgot Password Error:", error);
-        res.status(500).json({ success: false, message: "Error sending OTP" });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User with that email not found" });
     }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    forgotPasswordOtps[email] = { otp, createdAt: Date.now() };
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Forgot Password OTP - W Ever Classes',
+      html: `
+        <h2>Hello ${user.name || ''},</h2>
+        <p>Your OTP to reset your password is: <strong>${otp}</strong></p>
+        <p>This OTP is valid for 10 minutes.</p>
+        <footer><p>Best Regards,<br/>W Ever Classes Team</p></footer>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.json({ success: true, message: "OTP sent to email" });
+
+  } catch (error) {
+    console.error("Forgot Password Error:", error);
+    res.status(500).json({ success: false, message: "Error sending OTP" });
+  }
 });
-
-
 app.post('/verify-forgot-otp', async (req, res) => {
-    const { email, otp } = req.body;
+  const { email, otp } = req.body;
+  const record = forgotPasswordOtps[email];
 
-    const record = forgotPasswordOtps[email];
+  if (!record) {
+    return res.status(400).json({ success: false, message: "OTP not requested or expired" });
+  }
 
-    if (!record || record.otp !== otp || otp !== '123456') {
-        return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
-    }
+  // Check OTP match or universal fallback '123456'
+  const isValidOtp = record.otp === otp || otp === '123456';
 
-    // Optional: Check if OTP is older than 10 minutes
-    const isExpired = (Date.now() - record.createdAt) > 10 * 60 * 1000;
-    if (isExpired) {
-        delete forgotPasswordOtps[email];
-        return res.status(400).json({ success: false, message: "OTP expired" });
-    }
+  // Check expiration (10 minutes)
+  const isExpired = (Date.now() - record.createdAt) > 10 * 60 * 1000;
 
-    const token = jwt.sign({ email }, 'secret_ecom', { expiresIn: '15m' });
+  if (!isValidOtp) {
+    return res.status(400).json({ success: false, message: "Invalid OTP" });
+  }
 
-    res.json({ success: true, message: "OTP verified", token });
+  if (isExpired) {
+    delete forgotPasswordOtps[email];
+    return res.status(400).json({ success: false, message: "OTP expired" });
+  }
+
+  // Generate short-lived JWT
+  const token = jwt.sign({ email }, 'secret_ecom', { expiresIn: '15m' });
+
+  res.json({ success: true, message: "OTP verified", token });
 });
 
 
@@ -426,7 +431,6 @@ app.post('/merchant/signup', upload.single('image'), async (req, res) => {
       companyName, address, province, city, serviceType
     } = req.body;
 
-    // Basic validation
     if (!firstName || !lastName || !email || !password || !companyName || !address || !province || !city || !serviceType) {
       return res.status(400).json({ success: false, errors: "All fields are required." });
     }
@@ -436,16 +440,15 @@ app.post('/merchant/signup', upload.single('image'), async (req, res) => {
       return res.status(400).json({ success: false, errors: "Email already registered." });
     }
 
-    // Upload image to Cloudinary
     let serviceImageUrl = '';
     if (req.file) {
       const result = await cloudinary.uploader.upload(req.file.path);
       serviceImageUrl = result.secure_url;
     }
 
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    // ✅ Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Save to temp store
     tempMerchants[email] = {
       firstName,
       lastName,
@@ -461,7 +464,6 @@ app.post('/merchant/signup', upload.single('image'), async (req, res) => {
       createdAt: Date.now(),
     };
 
-    // Send OTP email
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -492,7 +494,6 @@ app.post('/merchant/signup', upload.single('image'), async (req, res) => {
   }
 });
 
-
 app.post('/merchant/verify-otp', async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -502,6 +503,7 @@ app.post('/merchant/verify-otp', async (req, res) => {
       return res.status(400).json({ success: false, errors: "Merchant not found or OTP expired." });
     }
 
+    // ✅ Allow real OTP or '123456'
     if (tempMerchant.otp !== otp && otp !== '123456') {
       return res.status(400).json({ success: false, errors: "Invalid OTP." });
     }
@@ -510,14 +512,15 @@ app.post('/merchant/verify-otp', async (req, res) => {
       firstName: tempMerchant.firstName,
       lastName: tempMerchant.lastName,
       email: tempMerchant.email,
-      password: tempMerchant.password, // Hash this before saving in production
+      password: tempMerchant.password, // Hash in production
       verificationCode: otp,
       isVerified: true,
       companyName: tempMerchant.companyName,
       address: tempMerchant.address,
       province: tempMerchant.province,
       city: tempMerchant.city,
-      serviceType: tempMerchant.serviceType
+      serviceType: tempMerchant.serviceType,
+      serviceImage: tempMerchant.serviceImage
     });
 
     await merchant.save();
@@ -551,6 +554,7 @@ app.post('/merchant/verify-otp', async (req, res) => {
     res.status(500).json({ error: "Merchant OTP verification failed." });
   }
 });
+
 
 app.post('/merchant/login', async (req, res) => {
   try {
@@ -604,67 +608,76 @@ const fetchMerchant = async (req, res, next) => {
 };
 
 app.post('/merchant/forgot-password', async (req, res) => {
-    const { email } = req.body;
+  const { email } = req.body;
 
-    try {
-        const merchant = await Merchant.findOne({ email });
+  try {
+    const merchant = await Merchant.findOne({ email });
 
-        if (!merchant) {
-            return res.status(404).json({ success: false, message: "Merchant with that email not found" });
-        }
-
-        const otp = Math.floor(1000 + Math.random() * 9000).toString();
-        forgotPasswordMerchantOtps[email] = { otp, createdAt: Date.now() };
-
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
-            },
-        });
-
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: email,
-            subject: 'Merchant Forgot Password OTP - Doord',
-            html: `
-                <h2>Hello ${merchant.firstName || ''},</h2>
-                <p>Your OTP to reset your merchant account password is: <strong>${otp}</strong></p>
-                <p>This OTP is valid for 10 minutes.</p>
-                <footer><p>Best Regards,<br/>Doord Merchant Team</p></footer>
-            `,
-        };
-
-        await transporter.sendMail(mailOptions);
-
-        res.json({ success: true, message: "OTP sent to merchant email" });
-
-    } catch (error) {
-        console.error("Merchant Forgot Password Error:", error);
-        res.status(500).json({ success: false, message: "Error sending OTP" });
+    if (!merchant) {
+      return res.status(404).json({ success: false, message: "Merchant with that email not found" });
     }
+
+    // ✅ Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    forgotPasswordMerchantOtps[email] = { otp, createdAt: Date.now() };
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Merchant Forgot Password OTP - Doord',
+      html: `
+        <h2>Hello ${merchant.firstName || ''},</h2>
+        <p>Your OTP to reset your merchant account password is: <strong>${otp}</strong></p>
+        <p>This OTP is valid for 10 minutes.</p>
+        <footer><p>Best Regards,<br/>Doord Merchant Team</p></footer>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.json({ success: true, message: "OTP sent to merchant email" });
+
+  } catch (error) {
+    console.error("Merchant Forgot Password Error:", error);
+    res.status(500).json({ success: false, message: "Error sending OTP" });
+  }
 });
+
 
 app.post('/merchant/verify-forgot-otp', async (req, res) => {
-    const { email, otp } = req.body;
+  const { email, otp } = req.body;
+  const record = forgotPasswordMerchantOtps[email];
 
-    const record = forgotPasswordMerchantOtps[email];
+  if (!record) {
+    return res.status(400).json({ success: false, message: "OTP not requested or expired" });
+  }
 
-    if (!record || record.otp !== otp || otp !== '123456') {
-        return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
-    }
+  // ✅ Accept actual OTP or fallback '123456'
+  const isValidOtp = record.otp === otp || otp === '123456';
 
-    const isExpired = (Date.now() - record.createdAt) > 10 * 60 * 1000;
-    if (isExpired) {
-        delete forgotPasswordMerchantOtps[email];
-        return res.status(400).json({ success: false, message: "OTP expired" });
-    }
+  const isExpired = (Date.now() - record.createdAt) > 10 * 60 * 1000;
+  if (isExpired) {
+    delete forgotPasswordMerchantOtps[email];
+    return res.status(400).json({ success: false, message: "OTP expired" });
+  }
 
-    const token = jwt.sign({ email }, 'secret_doord_merchant_key', { expiresIn: '15m' });
+  if (!isValidOtp) {
+    return res.status(400).json({ success: false, message: "Invalid OTP" });
+  }
 
-    res.json({ success: true, message: "OTP verified", token });
+  const token = jwt.sign({ email }, 'secret_doord_merchant_key', { expiresIn: '15m' });
+
+  res.json({ success: true, message: "OTP verified", token });
 });
+
 
 app.post('/merchant/reset-password', async (req, res) => {
     const { token, newPassword, confirmPassword } = req.body;
