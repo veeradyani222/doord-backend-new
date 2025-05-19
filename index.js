@@ -949,7 +949,7 @@ app.put('/updateOrder/:_id', async (req, res) => {
   }
 });
 
-router.get('/user/orders', fetchUser, async (req, res) => {
+app.get('/user/orders', fetchUser, async (req, res) => {
   try {
     const user = await Users.findById(req.user._id)
       .populate('populatedOrders')
@@ -962,7 +962,7 @@ router.get('/user/orders', fetchUser, async (req, res) => {
 });
 
 
-router.get('/merchant/orders', fetchMerchant, async (req, res) => {
+app.get('/merchant/orders', fetchMerchant, async (req, res) => {
   try {
     const merchant = await Merchant.findById(req.merchant._id)
       .populate('populatedOrders')
@@ -1326,7 +1326,7 @@ app.get('/all-reports', async (req, res) => {
 
 //ADDITIONAL ENDPOINTS
 
-router.get('/allServices', async (req, res) => {
+app.get('/allServices', async (req, res) => {
   try {
     // Get all merchants' serviceType arrays
     const merchants = await Merchant.find({}, 'serviceType');
