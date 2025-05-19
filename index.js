@@ -84,7 +84,8 @@ app.post("/upload", upload.single('image'), (req, res) => {
 });
 
 
-const Users = mongoose.model('Users', new mongoose.Schema({
+
+const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
@@ -100,20 +101,40 @@ const Users = mongoose.model('Users', new mongoose.Schema({
   timeZone: { type: String },
   notification: { type: String, default: "I send or receive Payment receipt" },
   twoFactorAuth: { type: Boolean, default: false },
+
   orders: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Order'
   }],
-  reportsAndIssues: {
-  type: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'ReportsAndIssues'
-  }],
-  default: [] // Add this default value
-},
-  Date: { type: Date, default: Date.now }
-}));
 
+  quotations: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Quotation'
+  }],
+
+  reportsAndIssues: {
+    type: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ReportsAndIssues'
+    }],
+    default: []
+  },
+
+  Date: { type: Date, default: Date.now }
+});
+
+// ✅ Virtual Population
+userSchema.virtual('populatedOrders', {
+  ref: 'Order',
+  localField: 'orders',
+  foreignField: '_id',
+});
+
+userSchema.set('toObject', { virtuals: true });
+userSchema.set('toJSON', { virtuals: true });
+
+// ✅ Create the model
+const Users = mongoose.model('Users', userSchema);
 const tempUsers = {}; // In-memory store for signup OTPs
 
 // Signup endpoint
@@ -391,6 +412,8 @@ app.post('/reset-password', async (req, res) => {
 
 //Merchant's Flow
 
+const mongoose = require('mongoose');
+
 const MerchantSchema = new mongoose.Schema({
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
@@ -399,31 +422,57 @@ const MerchantSchema = new mongoose.Schema({
   verificationCode: { type: String, required: true },
   isVerified: { type: Boolean, required: true, default: false },
   companyName: { type: String, required: true },
-  address: { type: String, required: true },
+  permanent_address: { type: String, required: true },
+  business_address: { type: String, required: true },
   province: { type: String, required: true },
+  city: { type: String, required: true },
   currency: { type: String },
   timeZone: { type: String },
   notification: { type: String, default: "I send or receive Payment receipt" },
   twoFactorAuth: { type: Boolean, default: false },
-  city: { type: String, required: true },
-  serviceType: { type: String, required: true },
-  serviceImage: { type: String,required: false  },
-   orders: [{
+
+  serviceType: { type: [String], required: true },
+  serviceImage: { type: String },
+
+  orders: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Order'
   }],
-  reportsAndIssues: {
-  type: [{
+
+  quotations: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'ReportsAndIssues'
+    ref: 'Quotation'
   }],
-  default: [] // Add this default value
-},
-  twoFactorAuth: { type: Boolean, default: false },
+
+  services: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Service'
+  }],
+
+  reportsAndIssues: {
+    type: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ReportsAndIssues'
+    }],
+    default: []
+  },
+
   createdAt: { type: Date, default: Date.now }
 });
 
+// ✅ Virtual population for orders
+MerchantSchema.virtual('populatedOrders', {
+  ref: 'Order',
+  localField: 'orders',
+  foreignField: '_id',
+});
+
+MerchantSchema.set('toObject', { virtuals: true });
+MerchantSchema.set('toJSON', { virtuals: true });
+
+// ✅ Export model
 const Merchant = mongoose.model('Merchant', MerchantSchema);
+
 
 const tempMerchants = {}; // In-memory store for signup OTPs
 const forgotPasswordMerchantOtps = {}; // Store OTPs for password reset
@@ -900,6 +949,30 @@ app.put('/updateOrder/:_id', async (req, res) => {
   }
 });
 
+router.get('/user/orders', fetchUser, async (req, res) => {
+  try {
+    const user = await Users.findById(req.user._id)
+      .populate('populatedOrders')
+      .select('populatedOrders');
+
+    res.json(user.populatedOrders);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
+router.get('/merchant/orders', fetchMerchant, async (req, res) => {
+  try {
+    const merchant = await Merchant.findById(req.merchant._id)
+      .populate('populatedOrders')
+      .select('populatedOrders');
+
+    res.json(merchant.populatedOrders);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // USER ROUTES
 
@@ -1250,6 +1323,120 @@ app.get('/all-reports', async (req, res) => {
     });
   }
 });
+
+//ADDITIONAL ENDPOINTS
+
+router.get('/allServices', async (req, res) => {
+  try {
+    // Get all merchants' serviceType arrays
+    const merchants = await Merchant.find({}, 'serviceType');
+
+    // Flatten the array of arrays into one array
+    const allServices = merchants.flatMap(m => m.serviceType);
+
+    // Get only unique services
+    const uniqueServices = [...new Set(allServices)];
+
+    res.status(200).json({ services: uniqueServices });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error });
+  }
+});
+
+//QUOTATIONS
+
+const QuotationSchema = new mongoose.Schema({
+  work_assignment: { type: String, required: true },
+  description: { type: String, required: true },
+  address: { type: String, required: true },
+  date: { type: Date, required: true },
+  time: { type: String, required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Users', required: true },
+  merchantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Merchant', required: true },
+  status: { type: String, enum: ['pending', 'accepted', 'rejected', 'completed'], default: 'pending' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Quotation = mongoose.model('Quotation', QuotationSchema);
+
+app.post('/addQuotation', fetchUser, async (req, res) => {
+  try {
+    const { work_assignment, description, address, date, time, merchantId } = req.body;
+
+    const newQuotation = new Quotation({
+      work_assignment,
+      description,
+      address,
+      date,
+      time,
+      userId: req.user._id,
+      merchantId
+    });
+
+    const savedQuotation = await newQuotation.save();
+
+    // Push only the ID to User & Merchant
+    await Users.findByIdAndUpdate(
+      req.user._id,
+      { $push: { quotations: savedQuotation._id } }
+    );
+
+    await Merchant.findByIdAndUpdate(
+      merchantId,
+      { $push: { quotations: savedQuotation._id } }
+    );
+
+    res.status(201).json(savedQuotation);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/quotations/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    const updatedQuotation = await Quotation.findByIdAndUpdate(id, updates, { new: true });
+
+    if (!updatedQuotation) {
+      return res.status(404).json({ error: 'Quotation not found' });
+    }
+
+    res.json(updatedQuotation);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
+// Get all quotations for a user (populated)
+app.get('/user/quotations', fetchUser, async (req, res) => {
+  try {
+    const user = await Users.findById(req.user._id)
+      .populate('quotations') // Automatically fills full data
+      .select('quotations');
+
+    res.json(user.quotations);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get all quotations for a merchant (populated)
+app.get('/merchant/quotations', fetchMerchant, async (req, res) => {
+  try {
+    const merchant = await Merchant.findById(req.merchant._id)
+      .populate('quotations')
+      .select('quotations');
+
+    res.json(merchant.quotations);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
 
 // Start the server
 app.listen(port, (error) => {
