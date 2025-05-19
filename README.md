@@ -1,417 +1,462 @@
-# 📘 Doord API Documentation
 
-> Full documentation for all routes (User, Merchant, Orders, Reports & Issues, Uploads) including:
->
-> * ✅ Method & URL
-> * 🔐 Auth required or not
-> * 📤 Request headers/body
-> * 📥 Success & ❌ Error responses
-> * 🧱 Mongoose schema for all models
+# 📦 Doord Backend API Documentation
+
+This documentation outlines all backend API endpoints for the Doord platform. Use this as a complete guide for integrating frontend functionality with the server.
 
 ---
 
-## ✳️ AUTH TOKENS
+## 🌐 Base URL
 
-| Who      | Header key            |
-| -------- | --------------------- |
-| User     | `auth-token`          |
-| Merchant | `merchant-auth-token` |
-
+```
+https://doord-backend-new.onrender.com/  (Replace with actual deployment URL)
+```
 
 ---
 
-## 👤 USER ROUTES
+## 📌 Headers
 
-### 📩 POST `/signup`
+### Auth Headers
 
-Register a new user and send OTP
+| Header Name           | Value                                  | Required |
+|-----------------------|----------------------------------------|----------|
+| `auth-token`          | JWT token (for user-protected routes)  | ✅       |
+| `merchant-auth-token` | JWT token (for merchant-protected routes) | ✅       |
 
-* 🔐 Auth: ❌
+---
+
+## 🔐 Authentication
+
+### 🔸 User Signup
+
+`POST /signup`
 
 ```json
 {
-  "name": "John",
+  "name": "John Doe",
   "email": "john@example.com",
-  "password": "123456"
+  "password": "secret123"
 }
 ```
 
-✅ `200 OK`
-
+✅ Response:
 ```json
 { "success": true, "message": "OTP sent successfully via email." }
 ```
 
-❌ `400 Bad Request` / `500 Internal Server Error`
-
 ---
 
-### ✅ POST `/verify-otp`
+### 🔸 Verify OTP
 
-Finalizes user registration with OTP
+`POST /verify-otp`
 
 ```json
 {
   "email": "john@example.com",
-  "otp": "1234"
+  "otp": "123456"
 }
 ```
 
-✅ `200 OK`
-
+✅ Response:
 ```json
 { "success": true, "message": "Email verified successfully." }
 ```
 
 ---
 
-### 🔐 POST `/login`
+### 🔸 Login
 
-Login and get token
+`POST /login`
 
 ```json
 {
   "email": "john@example.com",
-  "password": "123456"
+  "password": "secret123"
 }
 ```
 
-✅ `200 OK`
-
-```json
-{ "success": true, "token": "...", "user": { ... } }
-```
-
----
-
-### 🔒 GET `/getUser`
-
-Returns authenticated user
-
-* 🔐 `auth-token`
-  ✅ `200 OK` — returns user object
-
----
-
-### 🔍 POST `/getUser`
-
-Fetch user by email
-
-```json
-{ "email": "john@example.com" }
-```
-
----
-
-### 🛠️ PUT `/updateUser`
-
-Update current user fields
-
-* 🔐 `auth-token`
-
-```json
-{ "city": "New York" }
-```
-
----
-
-### 🔐 GET `/getAllUsers`
-
-Returns all users (admin access assumed)
-
----
-
-### 🔑 POST `/forgot-password`
-
-Send OTP to reset password
-
-```json
-{ "email": "john@example.com" }
-```
-
-### 🔑 POST `/verify-forgot-otp`
-
-Verify OTP and get short token
-
-```json
-{ "email": "john@example.com", "otp": "1234" }
-```
-
-### 🔑 POST `/reset-password`
-
-Reset password with token
-
-```json
-{ "token": "...", "newPassword": "abc", "confirmPassword": "abc" }
-```
-
----
-
-## 🛍️ MERCHANT ROUTES
-
-### 📝 POST `/merchant/signup`
-
-Includes image upload (via `image` field — `multipart/form-data`)
-
-### 🔐 POST `/merchant/verify-otp`
-
-Verifies merchant OTP and completes registration
-
-### 🔐 POST `/merchant/login`
-
-Login and return merchant token
-
-### 🔒 GET `/getMerchant`
-
-Returns current merchant
-
-* 🔐 `merchant-auth-token`
-
-### 🔍 POST `/getMerchant`
-
-Returns merchant by email
-
-### 🛠️ PUT `/updateMerchant`
-
-Update current merchant’s data
-
-* 🔐 `merchant-auth-token`
-
-### 🔐 GET `/getAllMerchants`
-
-Returns all merchants
-
-### 🔑 POST `/merchant/forgot-password`
-
-Send OTP to merchant email
-
-### 🔑 POST `/merchant/verify-forgot-otp`
-
-Verify OTP and get reset token
-
-### 🔑 POST `/merchant/reset-password`
-
-Reset merchant password
-
----
-
-## 📦 ORDER ROUTES
-
-### 🛒 POST `/addOrder`
-
-* 🔐 `auth-token`
-
+✅ Response:
 ```json
 {
-  "serviceName": "Design",
-  "email": "client@example.com",
-  "phone": "1234567890",
-  "orgName": "ACME",
-  "scheduledTime": "10:00 AM",
-  "businessName": "ACME Studio",
-  "merchant_email": "merchant@example.com"
-}
-```
-
-✅ `200 OK` — order saved
-❌ `400` — missing fields / merchant not found
-
----
-
-### 📦 GET `/getOrder/:_id`
-
-Returns order by ID
-
-* 🔐 `auth-token`
-
-### 📦 GET `/getAllOrders`
-
-Public endpoint to get all orders
-
-### 🛠️ PUT `/updateOrder/:_id`
-
-Update any order field
-
----
-
-## 📝 REPORTS & ISSUES ROUTES
-
-### 🧾 POST `/add-report`
-
-* 🔐 `auth-token`
-
-```json
-{
-  "orderId": "ORD123",
-  "issueType": "Late Delivery",
-  "description": "It was delayed.",
-  "attachment": "https://..."
-}
-```
-
-✅ `201 Created` — returns report
-
----
-
-### 🧾 POST `/merchant/add-report`
-
-* 🔐 `merchant-auth-token`
-  Same structure as user
-
----
-
-### 📃 GET `/my-reports`
-
-* 🔐 `auth-token`
-  Returns all reports submitted by user
-
-### 📃 GET `/merchant/my-reports`
-
-* 🔐 `merchant-auth-token`
-
----
-
-### 📬 GET `/reports-by-email`
-
-```json
-{ "email": "abc@example.com" }
-```
-
-✅ `200 OK` — returns reports or `404`
-❌ `400` — Invalid/missing email
-
----
-
-### ✏️ PATCH `/update-report`
-
-```json
-{
-  "reportId": "REPORT_ID",
-  "updates": {
-    "description": "Updated text",
-    "reportStatus": "Resolved"
+  "success": true,
+  "token": "JWT_TOKEN",
+  "user": {
+    "_id": "...",
+    "email": "...",
+    "name": "..."
   }
 }
 ```
 
-✅ `200 OK` — updated report
-❌ `403` — trying to update protected fields
+---
+
+### 🔸 Forgot Password Flow
+
+1. `POST /forgot-password`
+2. `POST /verify-forgot-otp`
+3. `POST /reset-password`
+
+Refer to detailed structure under each in codebase.
 
 ---
 
-### 🧾 GET `/all-reports`
+## 👤 User Routes
 
-Returns all reports (admin scope assumed)
+### Get Current User
+
+`GET /getUser`  
+🔒 Requires `auth-token`
 
 ---
 
-## 🖼️ IMAGE UPLOAD ROUTE
+### Get User by Email
 
-### 🖼️ POST `/upload`
+`POST /getUser`
 
-Form field: `image` (as `multipart/form-data`)
+```json
+{ "email": "john@example.com" }
+```
 
-✅ `200 OK`
+---
+
+### Update User
+
+`PUT /updateUser`  
+🔒 Requires `auth-token`
+
+Body = any updatable fields from schema
+
+---
+
+### Get All Users
+
+`GET /getAllUsers`
+
+---
+
+## 🧑‍💼 Merchant Routes
+
+Same flow as user, replace with `/merchant/*`:
+
+- `POST /merchant/signup`
+- `POST /merchant/verify-otp`
+- `POST /merchant/login`
+- `POST /merchant/forgot-password`
+- `POST /merchant/verify-forgot-otp`
+- `POST /merchant/reset-password`
+
+---
+
+### Get Current Merchant
+
+`GET /getMerchant` 🔒 `merchant-auth-token`
+
+---
+
+### Update Merchant
+
+`PUT /updateMerchant` 🔒
+
+---
+
+### Get All Merchants
+
+`GET /getAllMerchants`
+
+---
+
+## 📦 Orders
+
+### Add Order
+
+`POST /addOrder` 🔒
+
+Required fields:
 
 ```json
 {
-  "success": 1,
-  "image_url": "https://cloudinary.com/your-image.jpg"
+  "serviceName": "Plumbing",
+  "email": "customer@example.com",
+  "phone": "1234567890",
+  "orgName": "Client Org",
+  "scheduledTime": "2PM Tomorrow",
+  "businessName": "Biz Ltd",
+  "merchant_email": "merchant@example.com"
 }
 ```
 
 ---
 
-## 🧱 DATABASE SCHEMAS
+### Get Order by ID
 
-### 👤 User Schema
-
-| Field            | Type                 | Required | Default                               |
-| ---------------- | -------------------- | -------- | ------------------------------------- |
-| name             | String               | ✅        | —                                     |
-| email            | String (unique)      | ✅        | —                                     |
-| password         | String               | ✅        | —                                     |
-| verificationCode | String               | ✅        | —                                     |
-| isVerified       | Boolean              | ✅        | `false`                               |
-| dateOfBirth      | Date                 | ✅        | —                                     |
-| presentAddress   | String               | ❌        | —                                     |
-| permanentAddress | String               | ❌        | —                                     |
-| city             | String               | ❌        | —                                     |
-| postalCode       | BigInt               | ❌        | —                                     |
-| country          | String               | ❌        | —                                     |
-| currency         | String               | ❌        | —                                     |
-| timeZone         | String               | ❌        | —                                     |
-| notification     | String               | ❌        | `"I send or receive Payment receipt"` |
-| twoFactorAuth    | Boolean              | ❌        | `false`                               |
-| orders           | \[ObjectId → Order]  | ❌        | `[]`                                  |
-| reportsAndIssues | \[ObjectId → Report] | ❌        | `[]`                                  |
-| Date             | Date                 | ❌        | `Date.now`                            |
+`GET /getOrder/:_id`
 
 ---
 
-### 🛍️ Merchant Schema
+### Get User Orders
 
-| Field            | Type                 | Required | Default    |
-| ---------------- | -------------------- | -------- | ---------- |
-| firstName        | String               | ✅        | —          |
-| lastName         | String               | ✅        | —          |
-| email            | String (unique)      | ✅        | —          |
-| password         | String               | ✅        | —          |
-| verificationCode | String               | ✅        | —          |
-| isVerified       | Boolean              | ✅        | `false`    |
-| companyName      | String               | ✅        | —          |
-| address          | String               | ✅        | —          |
-| province         | String               | ✅        | —          |
-| city             | String               | ✅        | —          |
-| serviceType      | String               | ✅        | —          |
-| serviceImage     | String               | ❌        | —          |
-| orders           | \[ObjectId → Order]  | ❌        | `[]`       |
-| reportsAndIssues | \[ObjectId → Report] | ❌        | `[]`       |
-| twoFactorAuth    | Boolean              | ❌        | `false`    |
-| createdAt        | Date                 | ❌        | `Date.now` |
+`GET /user/orders` 🔒
 
 ---
 
-### 📦 Order Schema
+### Get Merchant Orders
 
-| Field           | Type   | Required | Default    |
-| --------------- | ------ | -------- | ---------- |
-| serviceName     | String | ✅        | —          |
-| email           | String | ✅        | —          |
-| phone           | String | ✅        | —          |
-| orgName         | String | ✅        | —          |
-| scheduledTime   | String | ✅        | —          |
-| orderStatus     | String | ❌        | `pending`  |
-| websiteAddress  | String | ❌        | —          |
-| masterCard      | String | ❌        | —          |
-| businessName    | String | ✅        | —          |
-| paymentStatus   | String | ❌        | `unpaid`   |
-| paymentPaid     | String | ❌        | —          |
-| user\_email     | String | ✅        | —          |
-| merchant\_email | String | ✅        | —          |
-| createdAt       | Date   | ❌        | `Date.now` |
+`GET /merchant/orders` 🔒
 
 ---
 
-### 📝 Reports & Issues Schema
+### Get All Orders
 
-| Field           | Type                          | Required | Default    |
-| --------------- | ----------------------------- | -------- | ---------- |
-| name            | String                        | ✅        | —          |
-| email           | String                        | ✅        | —          |
-| orderId         | String                        | ✅        | —          |
-| date            | Date                          | ❌        | `Date.now` |
-| issueType       | String                        | ✅        | —          |
-| description     | String                        | ✅        | —          |
-| reportStatus    | String                        | ❌        | `Pending`  |
-| attachment      | String                        | ❌        | —          |
-| reporterType    | String (`User` or `Merchant`) | ✅        | —          |
-| reporterId      | ObjectId (refPath)            | ✅        | —          |
-| reporter\_email | String                        | ✅        | —          |
-| createdAt       | Date                          | ❌        | `Date.now` |
+`GET /getAllOrders`
 
 ---
 
-📌 You can test this API using Postman, Thunder Client, or Swagger if desired.
+### Update Order
+
+`PUT /updateOrder/:_id`
+
+---
+
+## 🧾 Quotations
+
+### Add Quotation
+
+`POST /addQuotation` 🔒
+
+```json
+{
+  "work_assignment": "Fix AC",
+  "description": "AC not working",
+  "address": "123 Main St",
+  "date": "2025-05-20",
+  "time": "14:00",
+  "merchantId": "..."
+}
+```
+
+---
+
+### Get User Quotations
+
+`GET /user/quotations` 🔒
+
+---
+
+### Get Merchant Quotations
+
+`GET /merchant/quotations` 🔒
+
+---
+
+### Update Quotation (Admin)
+
+`PUT /quotations/:id`
+
+---
+
+### Update Quotation (User-owned)
+
+`PUT /quotation/user/edit/:id` 🔒
+
+---
+
+## 🛠️ Services
+
+### Add Service
+
+`POST /addService` 🔒
+
+```json
+{
+  "jobTitle": "Electrician",
+  "jobCategory": "Electrical",
+  "jobDescription": "Full installation",
+  "price": 150,
+  "discount": 10,
+  "image": "https://cdn/image.jpg"
+}
+```
+
+---
+
+### Edit Service
+
+- `PUT /editMyService/:id` 🔒 (Merchant's own)
+- `PUT /editService/:id` (Admin/all access)
+
+---
+
+### Get My Services
+
+`GET /getMyServices` 🔒
+
+---
+
+### Get All Services
+
+`GET /getAllServices`
+
+---
+
+## 🚨 Reports & Issues
+
+### Add Report (User)
+
+`POST /add-report` 🔒
+
+```json
+{
+  "orderId": "...",
+  "issueType": "Late Delivery",
+  "description": "The technician was late.",
+  "attachment": "https://cdn/img.jpg"
+}
+```
+
+---
+
+### Add Report (Merchant)
+
+`POST /merchant/add-report` 🔒
+
+---
+
+### Get My Reports (User)
+
+`GET /my-reports` 🔒
+
+---
+
+### Get My Reports (Merchant)
+
+`GET /merchant/my-reports` 🔒
+
+---
+
+### Get All Reports
+
+`GET /all-reports`
+
+---
+
+### Get Reports by Email
+
+`POST /reports-by-email`
+
+```json
+{ "email": "someone@example.com" }
+```
+
+---
+
+### Update Report
+
+`PATCH /update-report`
+
+```json
+{
+  "reportId": "...",
+  "updates": {
+    "issueType": "Updated",
+    "description": "Updated description"
+  }
+}
+```
+
+---
+
+## 📊 Analytics
+
+### Admin Analytics
+
+`GET /admin/analytics`
+
+Returns:
+- totalEarning
+- todayEarning
+- monthly trends
+- weekly earnings
+- expenses
+
+---
+
+### Merchant Analytics
+
+- `GET /merchant/analytics` 🔒
+- `GET /merchant/analytics/:id`
+
+---
+
+## 🖼️ Upload Image
+
+`POST /upload`  
+`multipart/form-data` with field: `image`
+
+Returns:
+```json
+{
+  "success": 1,
+  "image_url": "https://cdn.cloudinary.com/..."
+}
+```
+
+---
+
+## 🛑 Error Handling Format
+
+All error responses follow:
+
+```json
+{
+  "success": false,
+  "message" or "error": "Descriptive error message"
+}
+```
+
+---
+
+## 🔒 Tokens
+
+- JWT tokens valid for `730h` (~30 days)
+- OTP fallback value: `'123456'` (dev only)
+
+---
+
+## ⚠️ Notes
+
+- Passwords are stored as plain text (🚫). Replace with `bcrypt.hash()` in production.
+- Universal OTP `'123456'` bypasses verification. Disable in production.
+- In-memory OTP stores reset on server restart. Use Redis for persistence.
+- Image uploads use `Cloudinary`.
+
+---
+
+## 🧪 Testing Checklist
+
+✅ Email OTPs  
+✅ Authentication flows  
+✅ Protected routes  
+✅ CRUD for orders, services, quotations, reports  
+✅ File uploads  
+✅ Analytics charts
+
+---
+
+## 💻 Built With
+
+- Express.js
+- MongoDB & Mongoose
+- Cloudinary
+- Nodemailer
+- JWT Auth
+- Multer (uploads)
+- Twilio (planned)
+- Razorpay (future scope)
+
+---
+
+## 👥 Contributors
+
+- Backend: Veer Adyani
+- Frontend: (Insert team name here)
 
 ---
