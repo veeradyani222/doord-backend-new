@@ -1604,49 +1604,42 @@ app.get('/getAllServices', async (req, res) => {
 app.get('/admin/analytics', async (req, res) => {
   try {
     const today = new Date();
-    const startOfToday = new Date(today);
-    startOfToday.setHours(0, 0, 0, 0);
-    const endOfToday = new Date(today);
-    endOfToday.setHours(23, 59, 59, 999);
+    const startOfToday = new Date(today.setHours(0, 0, 0, 0));
+    const endOfToday = new Date(today.setHours(23, 59, 59, 999));
     const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
     const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
 
-    const allOrders = await Order.find().populate('merchant');
+    // Get all orders (no populate)
+    const allOrders = await Order.find();
 
-    const totalEarning = allOrders.reduce((sum, order) => {
-      const paymentPaid = parseFloat(order.paymentPaid);
-      return sum + (isNaN(paymentPaid) ? 0 : paymentPaid);
-    }, 0);
-
-    const targetEarning = 100000;
+    // Total Earning Calculations
+    const totalEarning = allOrders.reduce((sum, order) => sum + (parseFloat(order.paymentPaid) || 0), 0);
+    const targetEarning = 100000; // Example target
     const earningVsTarget = ((totalEarning - targetEarning) / targetEarning * 100).toFixed(2);
 
+    // Today's Earning
     const todayOrders = allOrders.filter(order =>
-      order.createdAt && new Date(order.createdAt) >= startOfToday && new Date(order.createdAt) <= endOfToday
+      new Date(order.createdAt) >= startOfToday &&
+      new Date(order.createdAt) <= endOfToday
     );
-
-    const todayEarning = todayOrders.reduce((sum, order) => {
-      const paymentPaid = parseFloat(order.paymentPaid);
-      return sum + (isNaN(paymentPaid) ? 0 : paymentPaid);
-    }, 0);
-
-    const todayTarget = 20000;
+    const todayEarning = todayOrders.reduce((sum, order) => sum + (parseFloat(order.paymentPaid) || 0), 0);
+    const todayTarget = 20000; // Example daily target
     const todayVsTarget = ((todayEarning - todayTarget) / todayTarget * 100).toFixed(2);
 
+    // Total Spending (assuming 40% of earnings are expenses)
     const totalSpending = totalEarning * 0.4;
-    const lastMonthSpending = totalSpending * 0.9;
+    const lastMonthSpending = totalSpending * 0.9; // Example previous period
 
+    // Monthly Earnings Trend
     const monthlyEarnings = Array(12).fill(0).map((_, month) => {
       const monthStart = new Date(today.getFullYear(), month, 1);
       const monthEnd = new Date(today.getFullYear(), month + 1, 0);
       return allOrders
-        .filter(order => order.createdAt && new Date(order.createdAt) >= monthStart && new Date(order.createdAt) <= monthEnd)
-        .reduce((sum, order) => {
-          const paymentPaid = parseFloat(order.paymentPaid);
-          return sum + (isNaN(paymentPaid) ? 0 : paymentPaid);
-        }, 0);
+        .filter(order => new Date(order.createdAt) >= monthStart && new Date(order.createdAt) <= monthEnd)
+        .reduce((sum, order) => sum + (parseFloat(order.paymentPaid) || 0), 0);
     });
 
+    // Weekly Earnings (last 7 days)
     const weeklyEarnings = Array(7).fill(0).map((_, day) => {
       const dayStart = new Date(today);
       dayStart.setDate(dayStart.getDate() - (6 - day));
@@ -1654,14 +1647,12 @@ app.get('/admin/analytics', async (req, res) => {
       const dayEnd = new Date(dayStart);
       dayEnd.setHours(23, 59, 59, 999);
       return allOrders
-        .filter(order => order.createdAt && new Date(order.createdAt) >= dayStart && new Date(order.createdAt) <= dayEnd)
-        .reduce((sum, order) => {
-          const paymentPaid = parseFloat(order.paymentPaid);
-          return sum + (isNaN(paymentPaid) ? 0 : paymentPaid);
-        }, 0);
+        .filter(order => new Date(order.createdAt) >= dayStart && new Date(order.createdAt) <= dayEnd)
+        .reduce((sum, order) => sum + (parseFloat(order.paymentPaid) || 0), 0);
     });
 
-    const dailyExpenses = weeklyEarnings.map(earning => earning * 0.4);
+    // Expenses by Day (last 7 days)
+    const dailyExpenses = weeklyEarnings.map(earning => earning * 0.4); // 40% expenses
 
     res.json({
       totalEarning: {
@@ -1696,13 +1687,12 @@ app.get('/admin/analytics', async (req, res) => {
         todayExpense: (todayEarning * 0.4).toFixed(2)
       }
     });
-
   } catch (error) {
-    console.error('Admin analytics error:', error);
+    console.error(error);
     res.status(500).json({ error: 'Server error' });
   }
 });
-
+ 
 
 app.get('/merchant/analytics', fetchMerchant, async (req, res) => {
   try {
