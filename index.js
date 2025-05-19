@@ -741,7 +741,6 @@ app.post('/merchant/reset-password', async (req, res) => {
     }
 });
 
-//ORDERS
 
 const OrderSchema = new mongoose.Schema({
   serviceName: {
@@ -1475,6 +1474,330 @@ app.put('/quotation/user/edit/:id', fetchUser, async (req, res) => {
 });
 
 
+//SERVICES
+
+const ServiceSchema = new mongoose.Schema({
+  jobTitle: {
+    type: String,
+    required: true
+  },
+  jobCategory: {
+    type: String,
+    required: true
+  },
+  jobDescription: {
+    type: String,
+    required: true
+  },
+  price: {
+    type: Number,
+    required: true
+  },
+  discount: {
+    type: Number,
+    default: 0
+  },
+  image: {
+    type: String
+  },
+  merchant: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Merchant',
+    required: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+const Service  = mongoose.model('Service',  ServiceSchema );
+
+
+// Add a new service (merchant auth required)
+app.post('/addService', fetchMerchant, async (req, res) => {
+  try {
+    const { jobTitle, jobCategory, jobDescription, price, discount, image } = req.body;
+    
+    const service = new Service({
+      jobTitle,
+      jobCategory,
+      jobDescription,
+      price,
+      discount,
+      image,
+      merchant: req.merchant._id
+    });
+
+    const savedService = await service.save();
+
+    // Add to merchant's services array
+    await Merchant.findByIdAndUpdate(
+      req.merchant._id,
+      { $push: { services: savedService._id } }
+    );
+
+    res.json(savedService);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Edit service (merchant auth - can only edit own services)
+app.put('/editMyService/:id', fetchMerchant, async (req, res) => {
+  try {
+    const updates = req.body;
+    
+    const service = await Service.findOneAndUpdate(
+      { _id: req.params.id, merchant: req.merchant._id },
+      updates,
+      { new: true }
+    );
+
+    if (!service) return res.status(404).json({ error: 'Service not found' });
+    res.json(service);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Edit any service (admin use - no auth)
+app.put('/editService/:id', async (req, res) => {
+  try {
+    const updatedService = await Service.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+
+    if (!updatedService) return res.status(404).json({ error: 'Service not found' });
+    res.json(updatedService);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get all services for logged-in merchant
+app.get('/getMyServices', fetchMerchant, async (req, res) => {
+  try {
+    const merchant = await Merchant.findById(req.merchant._id)
+      .populate('services');
+    res.json(merchant.services);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get all services in system (public)
+app.get('/getAllServices', async (req, res) => {
+  try {
+    const services = await Service.find().populate('merchant', 'companyName');
+    res.json(services);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
+//ANALYTICS
+
+app.get('/admin/analytics', async (req, res) => {
+  try {
+    // Date calculations
+    const today = new Date();
+    const startOfToday = new Date(today.setHours(0, 0, 0, 0));
+    const endOfToday = new Date(today.setHours(23, 59, 59, 999));
+    const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+    
+    // Get all orders
+    const allOrders = await Order.find().populate('merchant');
+    
+    // Total Earning Calculations
+    const totalEarning = allOrders.reduce((sum, order) => sum + (parseFloat(order.paymentPaid) || 0), 0);
+    const targetEarning = 100000; // Example target
+    const earningVsTarget = ((totalEarning - targetEarning) / targetEarning * 100).toFixed(2);
+    
+    // Today's Earning
+    const todayOrders = allOrders.filter(order => 
+      new Date(order.createdAt) >= startOfToday && 
+      new Date(order.createdAt) <= endOfToday
+    );
+    const todayEarning = todayOrders.reduce((sum, order) => sum + (parseFloat(order.paymentPaid) || 0), 0);
+    const todayTarget = 20000; // Example daily target
+    const todayVsTarget = ((todayEarning - todayTarget) / todayTarget * 100).toFixed(2);
+    
+    // Total Spending (assuming 40% of earnings are expenses)
+    const totalSpending = totalEarning * 0.4;
+    const lastMonthSpending = totalSpending * 0.9; // Example previous period
+    
+    // Monthly Earnings Trend
+    const monthlyEarnings = Array(12).fill(0).map((_, month) => {
+      const monthStart = new Date(today.getFullYear(), month, 1);
+      const monthEnd = new Date(today.getFullYear(), month + 1, 0);
+      return allOrders
+        .filter(order => new Date(order.createdAt) >= monthStart && new Date(order.createdAt) <= monthEnd)
+        .reduce((sum, order) => sum + (parseFloat(order.paymentPaid) || 0), 0);
+    });
+    
+    // Weekly Earnings (last 7 days)
+    const weeklyEarnings = Array(7).fill(0).map((_, day) => {
+      const dayStart = new Date(today);
+      dayStart.setDate(dayStart.getDate() - (6 - day));
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setHours(23, 59, 59, 999);
+      return allOrders
+        .filter(order => new Date(order.createdAt) >= dayStart && new Date(order.createdAt) <= dayEnd)
+        .reduce((sum, order) => sum + (parseFloat(order.paymentPaid) || 0), 0);
+    });
+    
+    // Expenses by Day (last 7 days)
+    const dailyExpenses = weeklyEarnings.map(earning => earning * 0.4); // 40% of earnings as expenses
+    
+    res.json({
+      totalEarning: {
+        value: totalEarning.toFixed(2),
+        change: earningVsTarget,
+        target: targetEarning
+      },
+      todayEarning: {
+        value: todayEarning.toFixed(2),
+        change: todayVsTarget,
+        target: todayTarget
+      },
+      totalSpending: {
+        value: totalSpending.toFixed(2),
+        previousPeriod: lastMonthSpending.toFixed(2)
+      },
+      balance: {
+        value: (totalEarning - totalSpending).toFixed(2),
+        change: "1.00" // Example
+      },
+      monthlyTrend: {
+        labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+        data: monthlyEarnings.map(amt => amt.toFixed(2))
+      },
+      weeklyEarnings: {
+        labels: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+        data: weeklyEarnings.map(amt => amt.toFixed(2))
+      },
+      dailyExpenses: {
+        labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+        data: dailyExpenses.map(amt => amt.toFixed(2)),
+        todayExpense: (todayEarning * 0.4).toFixed(2)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/merchant/analytics', fetchMerchant, async (req, res) => {
+  try {
+    const merchantId = req.merchant._id;
+    const today = new Date();
+    const startOfToday = new Date(today.setHours(0, 0, 0, 0));
+    const endOfToday = new Date(today.setHours(23, 59, 59, 999));
+    const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+    
+    // Get merchant's orders
+    const merchant = await Merchant.findById(merchantId).populate('orders');
+    const allOrders = merchant.orders;
+    
+    // Total Orders
+    const totalOrders = allOrders.length;
+    
+    // Total Sales
+    const totalSales = allOrders.reduce((sum, order) => sum + (parseFloat(order.paymentPaid) || 0), 0);
+    
+    // Conversion Rate (example: orders vs visitors)
+    const conversionRate = ((totalOrders / 500) * 100).toFixed(2); // Assuming 500 visitors
+    
+    // Total Customers (unique emails)
+    const uniqueCustomers = [...new Set(allOrders.map(order => order.user_email))].length;
+    
+    // Today's Sales
+    const todayOrders = allOrders.filter(order => 
+      new Date(order.createdAt) >= startOfToday && 
+      new Date(order.createdAt) <= endOfToday
+    );
+    const todaySales = todayOrders.reduce((sum, order) => sum + (parseFloat(order.paymentPaid) || 0), 0);
+    
+    // Monthly comparison
+    const currentMonthOrders = allOrders.filter(order => 
+      new Date(order.createdAt).getMonth() === today.getMonth()
+    );
+    const prevMonthOrders = allOrders.filter(order => 
+      new Date(order.createdAt) >= lastMonthStart && 
+      new Date(order.createdAt) <= lastMonthEnd
+    );
+    
+    res.json({
+      totalOrders: {
+        value: totalOrders,
+        change: "36" // Example percentage
+      },
+      totalSales: {
+        value: totalSales.toFixed(2),
+        change: "-14" // Example percentage
+      },
+      conversionRate: `${conversionRate}%`,
+      totalCustomers: {
+        value: uniqueCustomers,
+        change: "36" // Example percentage
+      },
+      todaySale: {
+        value: todaySales.toFixed(2),
+        change: "36" // Example percentage
+      },
+      monthlyComparison: {
+        currentMonth: currentMonthOrders.length,
+        previousMonth: prevMonthOrders.length
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
+app.get('/merchant/analytics/:id', async (req, res) => {
+  try {
+    const merchantId = req.params.id;
+    const today = new Date();
+    const startOfToday = new Date(today.setHours(0, 0, 0, 0));
+    const endOfToday = new Date(today.setHours(23, 59, 59, 999));
+    
+    // Get merchant's orders
+    const merchant = await Merchant.findById(merchantId).populate('orders');
+    if (!merchant) return res.status(404).json({ error: 'Merchant not found' });
+    
+    const allOrders = merchant.orders;
+    
+    // Calculate metrics
+    const totalOrders = allOrders.length;
+    const totalSales = allOrders.reduce((sum, order) => sum + (parseFloat(order.paymentPaid) || 0), 0);
+    const uniqueCustomers = [...new Set(allOrders.map(order => order.user_email))].length;
+    const todaySales = allOrders.filter(order => 
+      new Date(order.createdAt) >= startOfToday && 
+      new Date(order.createdAt) <= endOfToday
+    ).reduce((sum, order) => sum + (parseFloat(order.paymentPaid) || 0), 0);
+    
+    res.json({
+      merchantId,
+      companyName: merchant.companyName,
+      totalOrders,
+      totalSales: totalSales.toFixed(2),
+      totalCustomers: uniqueCustomers,
+      todaySales: todaySales.toFixed(2),
+      // Add more metrics as needed
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 
 // Start the server
