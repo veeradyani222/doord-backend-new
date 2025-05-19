@@ -412,7 +412,7 @@ app.post('/reset-password', async (req, res) => {
 
 //Merchant's Flow
 
-const mongoose = require('mongoose');
+
 
 const MerchantSchema = new mongoose.Schema({
   firstName: { type: String, required: true },
