@@ -1185,7 +1185,8 @@ app.get('/merchant/my-reports', fetchMerchant, async (req, res) => {
   }
 });
 
-app.get('/reports-by-email', async (req, res) => {
+
+app.post('/reports-by-email', async (req, res) => {
   try {
     const { email } = req.body;
     
@@ -1323,6 +1324,8 @@ app.get('/all-reports', async (req, res) => {
   }
 });
 
+
+
 //ADDITIONAL ENDPOINTS
 
 app.get('/allServices', async (req, res) => {
@@ -1434,6 +1437,43 @@ app.get('/merchant/quotations', fetchMerchant, async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+app.put('/quotation/edit/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    const updated = await Quotation.findByIdAndUpdate(id, updates, { new: true });
+
+    if (!updated) return res.status(404).json({ error: 'Quotation not found' });
+
+    res.json({ success: true, updated });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
+app.put('/quotation/user/edit/:id', fetchUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    const quotation = await Quotation.findById(id);
+    if (!quotation) return res.status(404).json({ error: 'Quotation not found' });
+
+    if (quotation.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Unauthorized: Not your quotation' });
+    }
+
+    const updated = await Quotation.findByIdAndUpdate(id, updates, { new: true });
+
+    res.json({ success: true, updated });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 
 
 
