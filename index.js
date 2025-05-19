@@ -123,16 +123,6 @@ const userSchema = new mongoose.Schema({
   Date: { type: Date, default: Date.now }
 });
 
-// ✅ Virtual Population
-userSchema.virtual('populatedOrders', {
-  ref: 'Order',
-  localField: 'orders',
-  foreignField: '_id',
-});
-
-userSchema.set('toObject', { virtuals: true });
-userSchema.set('toJSON', { virtuals: true });
-
 // ✅ Create the model
 const Users = mongoose.model('Users', userSchema);
 const tempUsers = {}; // In-memory store for signup OTPs
@@ -461,15 +451,6 @@ const MerchantSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-// ✅ Virtual population for orders
-MerchantSchema.virtual('populatedOrders', {
-  ref: 'Order',
-  localField: 'orders',
-  foreignField: '_id',
-});
-
-MerchantSchema.set('toObject', { virtuals: true });
-MerchantSchema.set('toJSON', { virtuals: true });
 
 // ✅ Export model
 const Merchant = mongoose.model('Merchant', MerchantSchema);
@@ -951,26 +932,42 @@ app.put('/updateOrder/:_id', async (req, res) => {
   }
 });
 
+
+app.get('/getOrder/:_id', fetchUser, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params._id);
+
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    if (order.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+ 
 app.get('/user/orders', fetchUser, async (req, res) => {
   try {
     const user = await Users.findById(req.user._id)
-      .populate('populatedOrders')
-      .select('populatedOrders');
+      .populate('orders') // ✅ populate actual field, not virtual
+      .select('orders');
 
-    res.json(user.populatedOrders);
+    res.json(user.orders);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-
 app.get('/merchant/orders', fetchMerchant, async (req, res) => {
   try {
     const merchant = await Merchant.findById(req.merchant._id)
-      .populate('populatedOrders')
-      .select('populatedOrders');
+      .populate('orders') // ✅ assuming `orders` exists in Merchant schema
+      .select('orders');
 
-    res.json(merchant.populatedOrders);
+    res.json(merchant.orders);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
