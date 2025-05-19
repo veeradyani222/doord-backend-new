@@ -910,7 +910,7 @@ app.post('/addOrder', fetchUser, async (req, res) => {
   }
 });
 
-app.get('/getOrder/:_id', fetchUser, async (req, res) => {
+app.get('/getOrder/:_id', async (req, res) => {
   try {
     const order = await Order.findById(req.params._id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
@@ -919,6 +919,7 @@ app.get('/getOrder/:_id', fetchUser, async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 // Get all orders
 app.get('/getAllOrders', async (req, res) => {
