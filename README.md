@@ -8,7 +8,7 @@ This documentation outlines all backend API endpoints for the Doord platform. Us
 ## 🌐 Base URL
 
 ```
-https://doord-backend-new.onrender.com/  (Replace with actual deployment URL)
+https://doord-backend-new.onrender.com/ 
 ```
 
 ---
