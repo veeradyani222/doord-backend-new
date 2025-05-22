@@ -976,8 +976,25 @@ app.get('/merchant/orders', fetchMerchant, async (req, res) => {
 
 // Get user by token
 app.get('/getUser', fetchUser, async (req, res) => {
-  res.json(req.user);
+  try {
+    // req.user might just have the _id, so re-fetch with population
+    const user = await Users.findById(req.user._id)
+      .populate('orders')
+      .populate('quotations')
+      .populate('reportsAndIssues');
+
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const userData = user.toObject();
+    delete userData.password;
+    delete userData.verificationCode;
+
+    res.json(userData);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
 });
+
 
 // Get user by email
 app.post('/getUser', async (req, res) => {
@@ -985,10 +1002,19 @@ app.post('/getUser', async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email is required' });
 
-    const user = await Users.findOne({ email });
+    const user = await Users.findOne({ email })
+      .populate('orders')          // Populates the orders array with full order docs
+      .populate('quotations')      // Populates quotations array
+      .populate('reportsAndIssues'); // Populates reports and issues array
+
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    res.json(user);
+    // Optionally remove sensitive fields before sending:
+    const userData = user.toObject();
+    delete userData.password;
+    delete userData.verificationCode;
+
+    res.json(userData);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -1023,19 +1049,45 @@ app.get('/getAllUsers', async (req, res) => {
 
 // Get merchant by token
 app.get('/getMerchant', fetchMerchant, async (req, res) => {
-  res.json(req.merchant);
+  try {
+    // Re-fetch with population to get full related data
+    const merchant = await Merchant.findById(req.merchant._id)
+      .populate('orders')
+      .populate('quotations')
+      .populate('services')
+      .populate('reportsAndIssues');
+
+    if (!merchant) return res.status(404).json({ error: 'Merchant not found' });
+
+    const merchantData = merchant.toObject();
+    delete merchantData.password;
+    delete merchantData.verificationCode;
+
+    res.json(merchantData);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
-// Get merchant by email
+
 app.post('/getMerchant', async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email is required' });
 
-    const merchant = await Merchant.findOne({ email });
+    const merchant = await Merchant.findOne({ email })
+      .populate('orders')
+      .populate('quotations')
+      .populate('services')
+      .populate('reportsAndIssues');
+
     if (!merchant) return res.status(404).json({ error: 'Merchant not found' });
 
-    res.json(merchant);
+    const merchantData = merchant.toObject();
+    delete merchantData.password;
+    delete merchantData.verificationCode;
+
+    res.json(merchantData);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
