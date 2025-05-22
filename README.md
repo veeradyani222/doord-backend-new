@@ -24,6 +24,130 @@ https://doord-backend-new.onrender.com/
 
 ---
 
+## SCHEMAS
+
+🧑 User Schema
+| Field            | Type                           | Required | Default                             | Notes                         |
+| ---------------- | ------------------------------ | -------- | ----------------------------------- | ----------------------------- |
+| name             | String                         | Yes      | -                                   | -                             |
+| email            | String                         | Yes      | -                                   | Must be unique                |
+| password         | String                         | Yes      | -                                   | -                             |
+| verificationCode | String                         | Yes      | -                                   | -                             |
+| isVerified       | Boolean                        | Yes      | false                               | -                             |
+| dateOfBirth      | Date                           | Yes      | -                                   | -                             |
+| presentAddress   | String                         | No       | -                                   | -                             |
+| permanentAddress | String                         | No       | -                                   | -                             |
+| city             | String                         | No       | -                                   | -                             |
+| postalCode       | BigInt                         | No       | -                                   | -                             |
+| country          | String                         | No       | -                                   | -                             |
+| currency         | String                         | No       | -                                   | -                             |
+| timeZone         | String                         | No       | -                                   | -                             |
+| notification     | String                         | No       | "I send or receive Payment receipt" | -                             |
+| twoFactorAuth    | Boolean                        | No       | false                               | -                             |
+| orders           | \[ObjectId → Order]            | No       | -                                   | References `Order` model      |
+| quotations       | \[ObjectId → Quotation]        | No       | -                                   | References `Quotation` model  |
+| reportsAndIssues | \[ObjectId → ReportsAndIssues] | No       | \[]                                 | References `ReportsAndIssues` |
+| Date             | Date                           | No       | Date.now                            | Created date                  |
+
+
+
+🧑‍💼 Merchant Schema
+
+| Field              | Type                           | Required | Default                             | Notes             |
+| ------------------ | ------------------------------ | -------- | ----------------------------------- | ----------------- |
+| firstName          | String                         | Yes      | -                                   | -                 |
+| lastName           | String                         | Yes      | -                                   | -                 |
+| email              | String                         | Yes      | -                                   | Must be unique    |
+| password           | String                         | Yes      | -                                   | -                 |
+| verificationCode   | String                         | Yes      | -                                   | -                 |
+| isVerified         | Boolean                        | Yes      | false                               | -                 |
+| companyName        | String                         | Yes      | -                                   | -                 |
+| address            | String                         | Yes      | -                                   | -                 |
+| permanent\_address | String                         | No       | -                                   | -                 |
+| business\_address  | String                         | No       | -                                   | -                 |
+| province           | String                         | Yes      | -                                   | -                 |
+| city               | String                         | Yes      | -                                   | -                 |
+| currency           | String                         | No       | -                                   | -                 |
+| timeZone           | String                         | No       | -                                   | -                 |
+| notification       | String                         | No       | "I send or receive Payment receipt" | -                 |
+| twoFactorAuth      | Boolean                        | No       | false                               | -                 |
+| serviceType        | \[String]                      | Yes      | -                                   | Array of services |
+| serviceImage       | String                         | No       | -                                   | -                 |
+| orders             | \[ObjectId → Order]            | No       | -                                   | -                 |
+| quotations         | \[ObjectId → Quotation]        | No       | -                                   | -                 |
+| services           | \[ObjectId → Service]          | No       | -                                   | -                 |
+| reportsAndIssues   | \[ObjectId → ReportsAndIssues] | No       | \[]                                 | -                 |
+| createdAt          | Date                           | No       | Date.now                            | -                 |
+
+
+📝 Order Schema
+
+| Field           | Type   | Required | Default   | Notes |
+| --------------- | ------ | -------- | --------- | ----- |
+| serviceName     | String | Yes      | -         | -     |
+| email           | String | Yes      | -         | -     |
+| phone           | String | Yes      | -         | -     |
+| orgName         | String | Yes      | -         | -     |
+| scheduledTime   | String | Yes      | -         | -     |
+| orderStatus     | String | No       | 'pending' | -     |
+| websiteAddress  | String | No       | -         | -     |
+| masterCard      | String | No       | -         | -     |
+| businessName    | String | Yes      | -         | -     |
+| paymentStatus   | String | No       | 'unpaid'  | -     |
+| paymentPaid     | String | No       | -         | -     |
+| user\_email     | String | Yes      | -         | -     |
+| merchant\_email | String | Yes      | -         | -     |
+| createdAt       | Date   | No       | Date.now  | -     |
+
+
+🐞 Reports & Issues Schema
+
+| Field           | Type     | Required | Default  | Notes                         |
+| --------------- | -------- | -------- | -------- | ----------------------------- |
+| name            | String   | Yes      | -        | -                             |
+| email           | String   | Yes      | -        | Main contact email            |
+| orderId         | String   | Yes      | -        | -                             |
+| date            | Date     | No       | Date.now | -                             |
+| issueType       | String   | Yes      | -        | -                             |
+| description     | String   | Yes      | -        | -                             |
+| reportStatus    | String   | No       | Pending  | -                             |
+| attachment      | String   | No       | -        | Optional file/image           |
+| reporterType    | String   | Yes      | -        | Either 'Users' or 'Merchant'  |
+| reporterId      | ObjectId | Yes      | -        | `refPath` to reporterType     |
+| reporter\_email | String   | Yes      | -        | Explicit reporter email field |
+| createdAt       | Date     | No       | Date.now | -                             |
+
+
+🧾 Quotation Schema
+
+| Field            | Type                | Required | Default   | Notes                                                 |
+| ---------------- | ------------------- | -------- | --------- | ----------------------------------------------------- |
+| work\_assignment | String              | Yes      | -         | -                                                     |
+| description      | String              | Yes      | -         | -                                                     |
+| address          | String              | Yes      | -         | -                                                     |
+| date             | Date                | Yes      | -         | -                                                     |
+| time             | String              | Yes      | -         | -                                                     |
+| userId           | ObjectId → Users    | Yes      | -         | -                                                     |
+| merchantId       | ObjectId → Merchant | Yes      | -         | -                                                     |
+| status           | String (enum)       | No       | 'pending' | One of `pending`, `accepted`, `rejected`, `completed` |
+| createdAt        | Date                | No       | Date.now  | -                                                     |
+
+
+🛠️ Service Schema
+
+| Field          | Type                | Required | Default  | Notes                 |
+| -------------- | ------------------- | -------- | -------- | --------------------- |
+| jobTitle       | String              | Yes      | -        | -                     |
+| jobCategory    | String              | Yes      | -        | -                     |
+| jobDescription | String              | Yes      | -        | -                     |
+| price          | Number              | Yes      | -        | -                     |
+| discount       | Number              | No       | 0        | -                     |
+| image          | String              | No       | -        | -                     |
+| merchant       | ObjectId → Merchant | Yes      | -        | Reference to merchant |
+| createdAt      | Date                | No       | Date.now | -                     |
+
+
+
 ## 🔐 Authentication
 
 ### 🔸 User Signup
