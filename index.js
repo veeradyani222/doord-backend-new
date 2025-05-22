@@ -1867,7 +1867,7 @@ router.get("/most-booked-services", async (req, res) => {
 
 app.get('/user/profile', fetchUser, async (req, res) => {
   try {
-    const userProfile = await User.findById(req.user.id)
+    const userProfile = await Users.findById(req.user.id)
       .populate('orders')
       .populate('quotations')
       .populate('reportsAndIssues');
