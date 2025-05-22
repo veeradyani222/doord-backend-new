@@ -1836,7 +1836,65 @@ app.get('/merchant/analytics/:id', async (req, res) => {
   }
 });
 
+//EXTRAS
 
+router.get("/most-booked-services", async (req, res) => {
+  try {
+    const mostBooked = await Order.aggregate([
+      {
+        $group: {
+          _id: "$serviceName",
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { count: -1 }
+      },
+      {
+        $project: {
+          serviceName: "$_id",
+          count: 1,
+          _id: 0
+        }
+      }
+    ]);
+
+    res.status(200).json(mostBooked);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching most booked services", error });
+  }
+});
+
+app.get('/user/profile', fetchUser, async (req, res) => {
+  try {
+    const userProfile = await User.findById(req.user.id)
+      .populate('orders')
+      .populate('quotations')
+      .populate('reportsAndIssues');
+
+    if (!userProfile) return res.status(404).json({ message: 'User not found' });
+
+    res.status(200).json(userProfile);
+  } catch (err) {
+    res.status(500).json({ message: 'Internal Server Error', error: err.message });
+  }
+});
+
+app.get('/merchant/profile', fetchMerchant, async (req, res) => {
+  try {
+    const merchantProfile = await Merchant.findById(req.merchant.id)
+      .populate('orders')
+      .populate('quotations')
+      .populate('services')
+      .populate('reportsAndIssues');
+
+    if (!merchantProfile) return res.status(404).json({ message: 'Merchant not found' });
+
+    res.status(200).json(merchantProfile);
+  } catch (err) {
+    res.status(500).json({ message: 'Internal Server Error', error: err.message });
+  }
+});
 
 // Start the server
 app.listen(port, (error) => {
