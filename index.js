@@ -91,7 +91,7 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   verificationCode: { type: String, required: true },
   isVerified: { type: Boolean, required: true, default: false },
-  dateOfBirth: { type: Date, required: true },
+  dateOfBirth: { type: String, required: true },
   presentAddress: { type: String },
   permanentAddress: { type: String },
   city: { type: String },
@@ -126,6 +126,8 @@ const userSchema = new mongoose.Schema({
 // ✅ Create the model
 const Users = mongoose.model('Users', userSchema);
 const tempUsers = {}; // In-memory store for signup OTPs
+
+
 
 // Signup endpoint
 app.post('/signup', async (req, res) => {
@@ -202,7 +204,7 @@ app.post('/verify-otp', async (req, res) => {
       password: tempUser.password || '', // ❗ Hash this in production
       verificationCode: otp,
       isVerified: true,
-      dateOfBirth: new Date(tempUser.dateOfBirth || Date.now()),
+      dateOfBirth: tempUser.dateOfBirth || '',
       presentAddress: tempUser.presentAddress || '',
       permanentAddress: tempUser.permanentAddress || '',
       city: tempUser.city || '',
@@ -1149,7 +1151,7 @@ const ReportsAndIssuesSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true }, // Main contact email
   orderId: { type: String, required: true },
-  date: { type: Date, default: Date.now },
+  date: { type: String},
   issueType: { type: String, required: true },
   description: { type: String, required: true },
   reportStatus: { 
@@ -1428,7 +1430,7 @@ const QuotationSchema = new mongoose.Schema({
   work_assignment: { type: String, required: true },
   description: { type: String, required: true },
   address: { type: String, required: true },
-  date: { type: Date, required: true },
+  date: { type: String, required: true },
   time: { type: String, required: true },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Users', required: true },
   merchantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Merchant', required: true },
