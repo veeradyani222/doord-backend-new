@@ -1890,7 +1890,7 @@ app.get('/merchant/analytics/:id', async (req, res) => {
 
 //EXTRAS
 
-router.get("/most-booked-services", async (req, res) => {
+app.get("/most-booked-services", async (req, res) => {
   try {
     const mostBooked = await Order.aggregate([
       {
