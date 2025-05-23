@@ -1570,8 +1570,7 @@ const ServiceSchema = new mongoose.Schema({
     required: true
   },
     time: {
-    type: String,
-    required: true
+    type: String
   },
   price: {
     type: Number,
@@ -1601,19 +1600,24 @@ const Service  = mongoose.model('Service',  ServiceSchema );
 // Add a new service (merchant auth required)
 app.post('/addService', fetchMerchant, async (req, res) => {
   try {
-    const { jobTitle, jobCategory, jobDescription, price, discount, image ,time } = req.body;
-    
-    const service = new Service({
+    const { jobTitle, jobCategory, jobDescription, price, discount, image, time } = req.body;
+
+    const serviceData = {
       jobTitle,
       jobCategory,
       jobDescription,
       price,
       discount,
       image,
-      time,
       merchant: req.merchant._id
-    });
+    };
 
+    // Only include the time field if it's provided
+    if (time) {
+      serviceData.time = time;
+    }
+
+    const service = new Service(serviceData);
     const savedService = await service.save();
 
     // Add to merchant's services array
@@ -1627,6 +1631,7 @@ app.post('/addService', fetchMerchant, async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 // Edit service (merchant auth - can only edit own services)
 app.put('/editMyService/:id', fetchMerchant, async (req, res) => {
