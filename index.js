@@ -1626,7 +1626,10 @@ app.post('/addService', fetchMerchant, async (req, res) => {
       { $push: { services: savedService._id } }
     );
 
-    res.json(savedService);
+    res.json({
+      success: true,
+      createdService: savedService
+    });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
