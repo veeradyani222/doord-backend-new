@@ -181,6 +181,8 @@ app.post('/signup', async (req, res) => {
     res.status(500).json({ error: "Signup failed." });
   }
 });
+
+
 app.post('/verify-otp', async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -195,12 +197,25 @@ app.post('/verify-otp', async (req, res) => {
     }
 
     const user = new Users({
-      name: tempUser.name,
-      email: tempUser.email,
-      password: tempUser.password, // ❗ Hash this in production
+      name: tempUser.name || '',
+      email: tempUser.email || '',
+      password: tempUser.password || '', // ❗ Hash this in production
       verificationCode: otp,
       isVerified: true,
-      dateOfBirth: new Date(tempUser.dateOfBirth || Date.now())
+      dateOfBirth: new Date(tempUser.dateOfBirth || Date.now()),
+      presentAddress: tempUser.presentAddress || '',
+      permanentAddress: tempUser.permanentAddress || '',
+      city: tempUser.city || '',
+      postalCode: tempUser.postalCode || 0n,
+      country: tempUser.country || '',
+      currency: tempUser.currency || '',
+      timeZone: tempUser.timeZone || '',
+      notification: tempUser.notification || "I send or receive Payment receipt",
+      twoFactorAuth: tempUser.twoFactorAuth || false,
+      orders: tempUser.orders || [],
+      quotations: tempUser.quotations || [],
+      reportsAndIssues: tempUser.reportsAndIssues || [],
+      Date: new Date()
     });
 
     await user.save();
@@ -538,24 +553,34 @@ app.post('/merchant/verify-otp', async (req, res) => {
       return res.status(400).json({ success: false, errors: "Merchant not found or OTP expired." });
     }
 
-    // ✅ Allow real OTP or '123456'
     if (tempMerchant.otp !== otp && otp !== '123456') {
       return res.status(400).json({ success: false, errors: "Invalid OTP." });
     }
 
     const merchant = new Merchant({
-      firstName: tempMerchant.firstName,
-      lastName: tempMerchant.lastName,
-      email: tempMerchant.email,
-      password: tempMerchant.password, // Hash in production
+      firstName: tempMerchant.firstName || '',
+      lastName: tempMerchant.lastName || '',
+      email: tempMerchant.email || '',
+      password: tempMerchant.password || '', // ❗ Hash this in production
       verificationCode: otp,
       isVerified: true,
-      companyName: tempMerchant.companyName,
-      address: tempMerchant.address,
-      province: tempMerchant.province,
-      city: tempMerchant.city,
-      serviceType: tempMerchant.serviceType,
-      serviceImage: tempMerchant.serviceImage
+      companyName: tempMerchant.companyName || '',
+      address: tempMerchant.address || '',
+      permanent_address: tempMerchant.permanent_address || '',
+      business_address: tempMerchant.business_address || '',
+      province: tempMerchant.province || '',
+      city: tempMerchant.city || '',
+      currency: tempMerchant.currency || '',
+      timeZone: tempMerchant.timeZone || '',
+      notification: tempMerchant.notification || "I send or receive Payment receipt",
+      twoFactorAuth: tempMerchant.twoFactorAuth || false,
+      serviceType: tempMerchant.serviceType || [],
+      serviceImage: tempMerchant.serviceImage || '',
+      orders: tempMerchant.orders || [],
+      quotations: tempMerchant.quotations || [],
+      services: tempMerchant.services || [],
+      reportsAndIssues: tempMerchant.reportsAndIssues || [],
+      createdAt: new Date()
     });
 
     await merchant.save();
@@ -589,6 +614,7 @@ app.post('/merchant/verify-otp', async (req, res) => {
     res.status(500).json({ error: "Merchant OTP verification failed." });
   }
 });
+
 
 
 app.post('/merchant/login', async (req, res) => {
@@ -1541,6 +1567,10 @@ const ServiceSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+    time: {
+    type: String,
+    required: true
+  },
   price: {
     type: Number,
     required: true
@@ -1569,7 +1599,7 @@ const Service  = mongoose.model('Service',  ServiceSchema );
 // Add a new service (merchant auth required)
 app.post('/addService', fetchMerchant, async (req, res) => {
   try {
-    const { jobTitle, jobCategory, jobDescription, price, discount, image } = req.body;
+    const { jobTitle, jobCategory, jobDescription, price, discount, image ,time } = req.body;
     
     const service = new Service({
       jobTitle,
@@ -1578,6 +1608,7 @@ app.post('/addService', fetchMerchant, async (req, res) => {
       price,
       discount,
       image,
+      time,
       merchant: req.merchant._id
     });
 
