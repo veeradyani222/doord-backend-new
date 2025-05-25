@@ -817,6 +817,9 @@ const OrderSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+   jobDescription: {
+    type: String
+  },
   paymentStatus: {
     type: String,
     default: 'unpaid'
@@ -870,7 +873,8 @@ app.post('/addOrder', fetchUser, async (req, res) => {
       masterCard,
       businessName,
       merchant_email,
-      paymentPaid
+      paymentPaid,
+      jobDescription 
     } = req.body;
 
     // Check if merchant exists
@@ -895,7 +899,8 @@ app.post('/addOrder', fetchUser, async (req, res) => {
       paymentStatus: paymentPaid ? 'paid' : 'unpaid',
       paymentPaid: paymentPaid || '',
       user_email: req.user.email, // From authenticated user
-      merchant_email
+      merchant_email,
+      jobDescription: jobDescription || '' 
     });
 
     // Save the order
@@ -1696,11 +1701,19 @@ app.get('/getMyServices', fetchMerchant, async (req, res) => {
   try {
     const merchant = await Merchant.findById(req.merchant._id)
       .populate('services');
-    res.json(merchant.services);
+
+    res.status(200).json({
+      success: true,
+      services: merchant.services
+    });
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
   }
 });
+
 
 // Get all services in system (public)
 app.get('/getAllServices', async (req, res) => {
