@@ -93,13 +93,18 @@ const userSchema = new mongoose.Schema({
   isVerified: { type: Boolean, required: true, default: false },
   dateOfBirth: { type: String, required: true },
   presentAddress: { type: String },
+  image_url: { type: String },
   permanentAddress: { type: String },
   city: { type: String },
   postalCode: { type: mongoose.Schema.Types.BigInt },
   country: { type: String },
   currency: { type: String },
   timeZone: { type: String },
-  notification: { type: String, default: "I send or receive Payment receipt" },
+ notification: {
+  type: [String],
+  default: ["I send or receive Payment receipt"]
+}
+,
   twoFactorAuth: { type: Boolean, default: false },
 
   orders: [{
@@ -208,11 +213,12 @@ app.post('/verify-otp', async (req, res) => {
       presentAddress: tempUser.presentAddress || '',
       permanentAddress: tempUser.permanentAddress || '',
       city: tempUser.city || '',
+      image_url: tempUser.image_url || '',
       postalCode: tempUser.postalCode || 0n,
       country: tempUser.country || '',
       currency: tempUser.currency || '',
       timeZone: tempUser.timeZone || '',
-      notification: tempUser.notification || "I send or receive Payment receipt",
+      notification: tempUser.notification || ["I send or receive Payment receipt"],
       twoFactorAuth: tempUser.twoFactorAuth || false,
       orders: tempUser.orders || [],
       quotations: tempUser.quotations || [],
@@ -424,6 +430,7 @@ app.post('/reset-password', async (req, res) => {
 const MerchantSchema = new mongoose.Schema({
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
+  image_url: { type: String},
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   verificationCode: { type: String, required: true },
@@ -436,7 +443,11 @@ const MerchantSchema = new mongoose.Schema({
   city: { type: String, required: true },
   currency: { type: String },
   timeZone: { type: String },
-  notification: { type: String, default: "I send or receive Payment receipt" },
+notification: {
+  type: [String],
+  default: ["I send or receive Payment receipt"]
+},
+
   twoFactorAuth: { type: Boolean, default: false },
 
   serviceType: { type: [String], required: true },
@@ -571,10 +582,11 @@ app.post('/merchant/verify-otp', async (req, res) => {
       permanent_address: tempMerchant.permanent_address || '',
       business_address: tempMerchant.business_address || '',
       province: tempMerchant.province || '',
+       image_url: tempMerchant.image_url || '',
       city: tempMerchant.city || '',
       currency: tempMerchant.currency || '',
       timeZone: tempMerchant.timeZone || '',
-      notification: tempMerchant.notification || "I send or receive Payment receipt",
+      notification: tempMerchant.notification || ["I send or receive Payment receipt"],
       twoFactorAuth: tempMerchant.twoFactorAuth || false,
       serviceType: tempMerchant.serviceType || [],
       serviceImage: tempMerchant.serviceImage || '',
