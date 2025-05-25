@@ -1149,28 +1149,37 @@ app.get('/getAllMerchants', async (req, res) => {
 //REPORTS AND ISSUES
 const ReportsAndIssuesSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  email: { type: String, required: true }, // Main contact email
+  email: { type: String, required: true },
   orderId: { type: String, required: true },
-  date: { type: String},
+  date: {
+    type: String,
+    default: () => {
+      const now = new Date();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const yyyy = now.getFullYear();
+      return `${mm}-${dd}-${yyyy}`;
+    }
+  },
   issueType: { type: String, required: true },
   description: { type: String, required: true },
-  reportStatus: { 
-    type: String, 
+  reportStatus: {
+    type: String,
     default: 'Pending'
   },
   attachment: { type: String },
-  reporterType: { 
+  reporterType: {
     type: String,
-    required: true 
+    required: true
   },
-  reporterId: { 
+  reporterId: {
     type: mongoose.Schema.Types.ObjectId,
     required: true,
     refPath: 'reporterType'
   },
-  reporter_email: { type: String, required: true }, // Explicit reporter email field
-  createdAt: { type: Date, default: Date.now }
+  reporter_email: { type: String, required: true }
 });
+
 const ReportsAndIssues = mongoose.model('ReportsAndIssues', ReportsAndIssuesSchema);
 
 // Add Report/Issue for User
@@ -1691,6 +1700,48 @@ app.get('/getAllServices', async (req, res) => {
   }
 });
 
+app.get('/allServices/jobTitle/:title', async (req, res) => {
+  try {
+    const title = req.params.title;
+
+    const services = await Service.find({ jobTitle: title }).populate('merchant', 'companyName');
+
+    res.status(200).json({
+      success: true,
+      message: `Services with job title '${title}' fetched successfully`,
+      services
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching services by job title',
+      error: error.message
+    });
+  }
+});
+
+
+app.get('/allServices/jobCategory/:category', async (req, res) => {
+  try {
+    const category = req.params.category;
+
+    const services = await Service.find({ jobCategory: category }).populate('merchant', 'companyName');
+
+    res.status(200).json({
+      success: true,
+      message: `Services in category '${category}' fetched successfully`,
+      services
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching services by job category',
+      error: error.message
+    });
+  }
+});
+
+
 
 //ANALYTICS
 
@@ -1952,9 +2003,17 @@ app.get("/most-booked-services", async (req, res) => {
       }
     ]);
 
-    res.status(200).json(mostBooked);
+    res.status(200).json({
+      success: true,
+      message: "Most booked services fetched successfully",
+      services: mostBooked
+    });
   } catch (error) {
-    res.status(500).json({ message: "Error fetching most booked services", error });
+    res.status(500).json({
+      success: false,
+      message: "Error fetching most booked services",
+      error: error.message
+    });
   }
 });
 
