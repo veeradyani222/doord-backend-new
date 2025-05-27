@@ -91,7 +91,7 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   verificationCode: { type: String, required: true },
   isVerified: { type: Boolean, required: true, default: false },
-  dateOfBirth: { type: String, required: true },
+  dateOfBirth: { type: String,  },
   presentAddress: { type: String },
   image_url: { type: String },
   permanentAddress: { type: String },
