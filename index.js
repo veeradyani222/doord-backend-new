@@ -1729,7 +1729,8 @@ app.get('/allServices/jobTitle/:title', async (req, res) => {
   try {
     const title = req.params.title;
 
-    const services = await Service.find({ jobTitle: title }).populate('merchant', 'companyName');
+    const services = await Service.find({ jobTitle: title })
+      .populate('merchant', 'companyName address city province');
 
     res.status(200).json({
       success: true,
@@ -1745,12 +1746,12 @@ app.get('/allServices/jobTitle/:title', async (req, res) => {
   }
 });
 
-
 app.get('/allServices/jobCategory/:category', async (req, res) => {
   try {
     const category = req.params.category;
 
-    const services = await Service.find({ jobCategory: category }).populate('merchant', 'companyName');
+    const services = await Service.find({ jobCategory: category })
+      .populate('merchant', 'companyName address city province');
 
     res.status(200).json({
       success: true,
@@ -1765,7 +1766,6 @@ app.get('/allServices/jobCategory/:category', async (req, res) => {
     });
   }
 });
-
 
 
 //ANALYTICS
