@@ -476,7 +476,10 @@ notification: {
     default: []
   },
 
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  postalCode: { type: String },
+  country: { type: String },
+  dateOfBirth: { type: Date },
 });
 
 
@@ -582,10 +585,13 @@ app.post('/merchant/verify-otp', async (req, res) => {
       permanent_address: tempMerchant.permanent_address || '',
       business_address: tempMerchant.business_address || '',
       province: tempMerchant.province || '',
-       image_url: tempMerchant.image_url || '',
       city: tempMerchant.city || '',
+      postalCode: tempMerchant.postalCode || '',
+      country: tempMerchant.country || '',
+      dateOfBirth: tempMerchant.dateOfBirth || null,
       currency: tempMerchant.currency || '',
       timeZone: tempMerchant.timeZone || '',
+      image_url: tempMerchant.image_url || '',
       notification: tempMerchant.notification || ["I send or receive Payment receipt"],
       twoFactorAuth: tempMerchant.twoFactorAuth || false,
       serviceType: tempMerchant.serviceType || [],
@@ -628,6 +634,7 @@ app.post('/merchant/verify-otp', async (req, res) => {
     res.status(500).json({ error: "Merchant OTP verification failed." });
   }
 });
+
 
 
 
@@ -782,7 +789,18 @@ app.post('/merchant/reset-password', async (req, res) => {
 });
 
 
+const CounterSchema = new mongoose.Schema({
+  _id: { type: String, required: true },
+  seq: { type: Number, default: 1000 }
+});
+
+const Counter = mongoose.model('Counter', CounterSchema);
+
 const OrderSchema = new mongoose.Schema({
+  orderId: {
+    type: Number,
+    unique: true
+  },
   serviceName: {
     type: String,
     required: true
@@ -817,7 +835,7 @@ const OrderSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-   jobDescription: {
+  jobDescription: {
     type: String
   },
   paymentStatus: {
@@ -838,7 +856,15 @@ const OrderSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
-  }
+  },
+  userId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'Users',
+},
+merchantId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'Merchant',
+}
 });
 
 
@@ -847,13 +873,11 @@ const Order = mongoose.model('Order', OrderSchema);
 
 app.post('/addOrder', fetchUser, async (req, res) => {
   try {
-    // Destructure required fields
     const requiredFields = [
-      'serviceName', 'email', 'phone', 'orgName', 
+      'serviceName', 'email', 'phone', 'orgName',
       'scheduledTime', 'businessName', 'merchant_email'
     ];
-    
-    // Validate all required fields
+
     const missingFields = requiredFields.filter(field => !req.body[field]);
     if (missingFields.length > 0) {
       return res.status(400).json({
@@ -874,20 +898,25 @@ app.post('/addOrder', fetchUser, async (req, res) => {
       businessName,
       merchant_email,
       paymentPaid,
-      jobDescription 
+      jobDescription
     } = req.body;
 
-    // Check if merchant exists
     const merchant = await Merchant.findOne({ email: merchant_email });
     if (!merchant) {
-      return res.status(404).json({ 
-        success: false,
-        errors: 'Merchant not found' 
-      });
+      return res.status(404).json({ success: false, errors: 'Merchant not found' });
     }
 
-    // Create new order
+    const user = await Users.findOne({ email: req.user.email });
+
+    // Get next orderId
+    const counter = await Counter.findByIdAndUpdate(
+      { _id: 'orderId' },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+
     const newOrder = new Order({
+      orderId: counter.seq,
       serviceName,
       email,
       phone,
@@ -898,30 +927,26 @@ app.post('/addOrder', fetchUser, async (req, res) => {
       businessName,
       paymentStatus: paymentPaid ? 'paid' : 'unpaid',
       paymentPaid: paymentPaid || '',
-      user_email: req.user.email, // From authenticated user
-      merchant_email,
-      jobDescription: jobDescription || '' 
+      user_email: user.email,
+      merchant_email: merchant.email,
+      userId: user._id,
+      merchantId: merchant._id,
+      jobDescription: jobDescription || ''
     });
 
-    // Save the order
     const savedOrder = await newOrder.save();
 
-    // Update user's orders array
-    await Users.findByIdAndUpdate(
-      req.user._id,
-      { $push: { orders: savedOrder} }
-    );
+    await Users.findByIdAndUpdate(user._id, { $push: { orders: savedOrder._id } });
+    await Merchant.findByIdAndUpdate(merchant._id, { $push: { orders: savedOrder._id } });
 
-    // Update merchant's orders array
-    await Merchant.findOneAndUpdate(
-      { email: merchant_email },
-      { $push: { orders: savedOrder } }
-    );
+    // Optional: Populate user and merchant data in response
+    const populatedOrder = await Order.findById(savedOrder._id)
+      .populate('userId')
+      .populate('merchantId');
 
-    // Successful response
     res.json({
       success: true,
-      order: savedOrder,
+      order: populatedOrder,
       message: 'Order created successfully'
     });
 
@@ -934,6 +959,7 @@ app.post('/addOrder', fetchUser, async (req, res) => {
     });
   }
 });
+
 
 app.get('/getOrder/:_id', async (req, res) => {
   try {
