@@ -1664,7 +1664,6 @@ app.post('/addService', fetchMerchant, async (req, res) => {
       merchant: req.merchant._id
     };
 
-    // Only include the time field if it's provided
     if (time) {
       serviceData.time = time;
     }
@@ -1672,20 +1671,25 @@ app.post('/addService', fetchMerchant, async (req, res) => {
     const service = new Service(serviceData);
     const savedService = await service.save();
 
-    // Add to merchant's services array
+    // Push service ID to merchant's services array
     await Merchant.findByIdAndUpdate(
       req.merchant._id,
       { $push: { services: savedService._id } }
     );
 
+    // Populate the merchant field before sending response
+    const populatedService = await Service.findById(savedService._id).populate('merchant');
+
     res.json({
       success: true,
-      createdService: savedService
+      createdService: populatedService
     });
+
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
 });
+
 
 
 // Edit service (merchant auth - can only edit own services)
