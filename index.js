@@ -1048,24 +1048,41 @@ app.get('/merchant/orders', fetchMerchant, async (req, res) => {
 // Get user by token
 app.get('/getUser', fetchUser, async (req, res) => {
   try {
-    // req.user might just have the _id, so re-fetch with population
+    // Check if req.user is available
+    if (!req.user || !req.user._id) {
+      return res.status(400).json({ error: 'Invalid user context. User not authenticated.' });
+    }
+
+    // Attempt to fetch user and populate references
     const user = await Users.findById(req.user._id)
       .populate('orders')
       .populate('quotations')
       .populate('reportsAndIssues');
 
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    // Handle if user not found
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
+    // Convert user to plain object and remove sensitive data
     const userData = user.toObject();
     delete userData.password;
     delete userData.verificationCode;
 
+    // Send sanitized user data
     res.json(userData);
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
+    console.error('Error fetching user:', error);
+
+    // Handle specific MongoDB errors (e.g., invalid ObjectId)
+    if (error.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid user ID format' });
+    }
+
+    // Generic server error response
+    res.status(500).json({ error: 'Server error. Please try again later.' });
   }
 });
-
 
 // Get user by email
 app.post('/getUser', async (req, res) => {
@@ -1095,16 +1112,52 @@ app.post('/getUser', async (req, res) => {
 // Update user (any field)
 app.put('/updateUser', fetchUser, async (req, res) => {
   try {
-    const user = await Users.findByIdAndUpdate(
+    // Ensure user context is valid
+    if (!req.user || !req.user._id) {
+      return res.status(400).json({ error: 'Invalid user context. User not authenticated.' });
+    }
+
+    // Prevent updates to sensitive fields
+    const disallowedFields = ['password', 'verificationCode', '_id', '__v'];
+    for (const key of disallowedFields) {
+      if (req.body.hasOwnProperty(key)) {
+        return res.status(400).json({ error: `Modification of '${key}' is not allowed.` });
+      }
+    }
+
+    // Attempt update
+    const updatedUser = await Users.findByIdAndUpdate(
       req.user._id,
       { $set: req.body },
-      { new: true }
+      { new: true, runValidators: true }
     );
-    res.json(user);
+
+    // Handle user not found
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Remove sensitive data from response
+    const userData = updatedUser.toObject();
+    delete userData.password;
+    delete userData.verificationCode;
+
+    res.json(userData);
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
+    console.error('Error updating user:', error);
+
+    if (error.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid user ID format' });
+    }
+
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.status(500).json({ error: 'Server error. Please try again later.' });
   }
 });
+
 
 // Get all users
 app.get('/getAllUsers', async (req, res) => {
@@ -1121,24 +1174,42 @@ app.get('/getAllUsers', async (req, res) => {
 // Get merchant by token
 app.get('/getMerchant', fetchMerchant, async (req, res) => {
   try {
-    // Re-fetch with population to get full related data
+    // Validate merchant context
+    if (!req.merchant || !req.merchant._id) {
+      return res.status(400).json({ error: 'Invalid merchant context. Merchant not authenticated.' });
+    }
+
+    // Attempt to fetch merchant with populated references
     const merchant = await Merchant.findById(req.merchant._id)
       .populate('orders')
       .populate('quotations')
       .populate('services')
       .populate('reportsAndIssues');
 
-    if (!merchant) return res.status(404).json({ error: 'Merchant not found' });
+    // Handle merchant not found
+    if (!merchant) {
+      return res.status(404).json({ error: 'Merchant not found' });
+    }
 
+    // Remove sensitive fields before sending response
     const merchantData = merchant.toObject();
     delete merchantData.password;
     delete merchantData.verificationCode;
 
     res.json(merchantData);
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
+    console.error('Error fetching merchant:', error);
+
+    // Handle specific MongoDB errors like invalid ObjectId
+    if (error.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid merchant ID format' });
+    }
+
+    // Generic server error response
+    res.status(500).json({ error: 'Server error. Please try again later.' });
   }
 });
+
 
 
 app.post('/getMerchant', async (req, res) => {
