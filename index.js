@@ -1122,7 +1122,10 @@ app.put('/updateUser', fetchUser, async (req, res) => {
     delete userData.password;
     delete userData.verificationCode;
 
-    res.json(userData);
+    // Safely handle BigInt serialization
+    const safeUserData = convertBigIntToString(userData);
+
+    res.json(safeUserData);
   } catch (error) {
     console.error('Error updating user:', error);
 
