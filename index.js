@@ -1046,68 +1046,48 @@ app.get('/merchant/orders', fetchMerchant, async (req, res) => {
 // USER ROUTES
 
 // Get user by token
+// Helper function to convert BigInt values to strings
+function convertBigIntToString(obj) {
+  return JSON.parse(
+    JSON.stringify(obj, (_, value) =>
+      typeof value === 'bigint' ? value.toString() : value
+    )
+  );
+}
+
+// Get user by token
 app.get('/getUser', fetchUser, async (req, res) => {
   try {
-    // Check if req.user is available
     if (!req.user || !req.user._id) {
       return res.status(400).json({ error: 'Invalid user context. User not authenticated.' });
     }
 
-    // Attempt to fetch user and populate references
     const user = await Users.findById(req.user._id)
       .populate('orders')
       .populate('quotations')
       .populate('reportsAndIssues');
 
-    // Handle if user not found
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Convert user to plain object and remove sensitive data
     const userData = user.toObject();
     delete userData.password;
     delete userData.verificationCode;
 
-    // Send sanitized user data
-    res.json(userData);
+    const safeUserData = convertBigIntToString(userData);
+
+    res.json(safeUserData);
   } catch (error) {
     console.error('Error fetching user:', error);
 
-    // Handle specific MongoDB errors (e.g., invalid ObjectId)
     if (error.name === 'CastError') {
       return res.status(400).json({ error: 'Invalid user ID format' });
     }
 
-    // Generic server error response
     res.status(500).json({ error: 'Server error. Please try again later.' });
   }
 });
-
-// Get user by email
-app.post('/getUser', async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: 'Email is required' });
-
-    const user = await Users.findOne({ email })
-      .populate('orders')          // Populates the orders array with full order docs
-      .populate('quotations')      // Populates quotations array
-      .populate('reportsAndIssues'); // Populates reports and issues array
-
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    // Optionally remove sensitive fields before sending:
-    const userData = user.toObject();
-    delete userData.password;
-    delete userData.verificationCode;
-
-    res.json(userData);
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
 
 // Update user (any field)
 app.put('/updateUser', fetchUser, async (req, res) => {
