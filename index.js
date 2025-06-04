@@ -422,6 +422,32 @@ app.post('/reset-password', async (req, res) => {
     }
 });
 
+app.post('/resetPassword', fetchUser, async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ error: "Old and new passwords are required" });
+    }
+
+    const user = req.user;
+
+    // Check if old password matches
+    if (user.password !== oldPassword) {
+      return res.status(401).json({ error: "Old password is incorrect" });
+    }
+
+    // Update to new password
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ success: true, message: "Password reset successfully" });
+
+  } catch (error) {
+    res.status(500).json({ error: "Server error", details: error.message });
+  }
+});
+
 
 //Merchant's Flow
 
@@ -788,6 +814,34 @@ app.post('/merchant/reset-password', async (req, res) => {
     }
 });
 
+app.post('/resetMerchantPassword', fetchMerchant, async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ error: "Old and new passwords are required" });
+    }
+
+    const merchant = req.merchant;
+
+    // Check old password
+    if (merchant.password !== oldPassword) {
+      return res.status(401).json({ error: "Old password is incorrect" });
+    }
+
+    // Update password
+    merchant.password = newPassword;
+    await merchant.save();
+
+    res.json({ success: true, message: "Password reset successfully" });
+
+  } catch (error) {
+    res.status(500).json({ error: "Server error", details: error.message });
+  }
+});
+
+
+
 
 const CounterSchema = new mongoose.Schema({
   _id: { type: String, required: true },
@@ -1043,7 +1097,49 @@ app.get('/merchant/orders', fetchMerchant, async (req, res) => {
   }
 });
 
-// USER ROUTES
+const ContactSchema = new mongoose.Schema({
+  firstName: { type: String },
+  lastName:  { type: String},
+  email:     { type: String },
+  phone:     { type: String},
+  message:   { type: String },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Contact = mongoose.model('Contact', ContactSchema);
+
+app.post('/addContact', async (req, res) => {
+  try {
+    const { firstName, lastName, email, phone, message } = req.body;
+
+    // Validate required fields
+    if (!firstName || !lastName || !email || !phone || !message) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+
+    const contact = new Contact({ firstName, lastName, email, phone, message });
+    const savedContact = await contact.save();
+
+    res.json({
+      success: true,
+      message: "Contact message submitted successfully",
+      contact: savedContact
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Server error", details: error.message });
+  }
+});
+
+
+app.get('/getContacts', async (req, res) => {
+  try {
+    const contacts = await Contact.find().sort({ createdAt: -1 }); // latest first
+    res.json({ success: true, contacts });
+  } catch (error) {
+    res.status(500).json({ error: "Server error", details: error.message });
+  }
+});
+
 
 // Get user by token
 // Helper function to convert BigInt values to strings
@@ -1848,6 +1944,63 @@ app.get('/allServices/jobCategory/:category', async (req, res) => {
       message: 'Server error while fetching services by job category',
       error: error.message
     });
+  }
+});
+
+
+// Search services by jobTitle or jobCategory using a single query param
+app.get('/searchServices', async (req, res) => {
+  try {
+    const { query } = req.query;
+
+    if (!query) {
+      return res.status(400).json({ error: 'Please provide a search query.' });
+    }
+
+    const services = await Service.find({
+      $or: [
+        { jobTitle: { $regex: query, $options: 'i' } },
+        { jobCategory: { $regex: query, $options: 'i' } }
+      ]
+    }).populate('merchant', 'companyName');
+
+    res.json({
+      success: true,
+      count: services.length,
+      services
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
+});
+
+app.delete('/deleteService/:id', fetchMerchant, async (req, res) => {
+  try {
+    const serviceId = req.params.id;
+
+    // Find and delete the service that belongs to the authenticated merchant
+    const deletedService = await Service.findOneAndDelete({
+      _id: serviceId,
+      merchant: req.merchant._id
+    });
+
+    if (!deletedService) {
+      return res.status(404).json({ error: 'Service not found or not authorized to delete' });
+    }
+
+    // Remove the service reference from the merchant's services array
+    await Merchant.findByIdAndUpdate(req.merchant._id, {
+      $pull: { services: serviceId }
+    });
+
+    res.json({
+      success: true,
+      message: 'Service deleted successfully',
+      deletedService
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
 });
 
