@@ -472,6 +472,7 @@ const MerchantSchema = new mongoose.Schema({
   city: { type: String, required: true },
   currency: { type: String },
   timeZone: { type: String },
+  place_id: { type: String },
 notification: {
   type: [String],
   default: ["I send or receive Payment receipt"]
@@ -609,7 +610,8 @@ app.post('/merchant/verify-otp', async (req, res) => {
       password: tempMerchant.password || '', // ❗ Hash this in production
       verificationCode: otp,
       isVerified: true,
-       uid: tempMerchant.uid || '',
+      uid: tempMerchant.uid || '',
+      place_id: tempMerchant.place_id || '',
       companyName: tempMerchant.companyName || '',
       address: tempMerchant.address || '',
       permanent_address: tempMerchant.permanent_address || '',
