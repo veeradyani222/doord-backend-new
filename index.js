@@ -846,6 +846,28 @@ app.post('/resetMerchantPassword', fetchMerchant, async (req, res) => {
   }
 });
 
+app.get('/getMerchantById/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate the MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid ID format' });
+    }
+
+    // Find the merchant by ID
+    const merchant = await Merchant.findById(id);
+
+    if (!merchant) {
+      return res.status(404).json({ success: false, message: 'Merchant not found' });
+    }
+
+    res.status(200).json({ success: true, merchant });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
 
 
 
