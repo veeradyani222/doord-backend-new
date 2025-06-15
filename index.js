@@ -927,6 +927,9 @@ const OrderSchema = new mongoose.Schema({
   paymentPaid: {
     type: String
   },
+    price: {
+    type: String
+  },
   user_email: {
     type: String,
     required: true
@@ -978,6 +981,7 @@ app.post('/addOrder', fetchUser, async (req, res) => {
       websiteAddress,
       masterCard,
       businessName,
+      price,
       merchant_email,
       paymentPaid,
       jobDescription
@@ -1007,6 +1011,7 @@ app.post('/addOrder', fetchUser, async (req, res) => {
       websiteAddress: websiteAddress || '',
       masterCard: masterCard || '',
       businessName,
+      price: price || '',
       paymentStatus: paymentPaid ? 'paid' : 'unpaid',
       paymentPaid: paymentPaid || '',
       user_email: user.email,
@@ -1041,6 +1046,89 @@ app.post('/addOrder', fetchUser, async (req, res) => {
     });
   }
 });
+
+app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
+  try {
+    const requiredFields = [
+      'serviceName', 'clientEmail', 'clientPhone', 'orgName',
+      'scheduledTime', 'businessName'
+    ];
+
+    const missingFields = requiredFields.filter(field => !req.body[field]);
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        errors: 'Missing required fields',
+        missingFields
+      });
+    }
+
+    const {
+      serviceName,
+      clientEmail,
+      clientPhone,
+      orgName,
+      price,
+      scheduledTime,
+      websiteAddress,
+      masterCard,
+      businessName,
+      paymentPaid,
+      jobDescription
+    } = req.body;
+
+    const merchant = await Merchant.findOne({ email: req.merchant.email });
+    if (!merchant) {
+      return res.status(404).json({ success: false, errors: 'Merchant not found' });
+    }
+
+    const counter = await Counter.findByIdAndUpdate(
+      { _id: 'orderId' },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+
+    const newOrder = new Order({
+      orderId: counter.seq,
+      serviceName,
+      email: clientEmail,
+      phone: clientPhone,
+      orgName,
+      scheduledTime,
+      websiteAddress: websiteAddress || '',
+      masterCard: masterCard || '',
+       price: price || '',
+      businessName,
+      paymentStatus: paymentPaid ? 'paid' : 'unpaid',
+      paymentPaid: paymentPaid || '',
+      merchant_email: merchant.email,
+      merchantId: merchant._id,
+      jobDescription: jobDescription || ''
+    });
+
+    const savedOrder = await newOrder.save();
+
+    await Merchant.findByIdAndUpdate(merchant._id, { $push: { orders: savedOrder._id } });
+
+    const populatedOrder = await Order.findById(savedOrder._id)
+      .populate('merchantId');
+
+    res.json({
+      success: true,
+      order: populatedOrder,
+      message: 'Order created by merchant successfully'
+    });
+
+  } catch (error) {
+    console.error("Merchant Order Creation Error:", error.message);
+    res.status(500).json({
+      success: false,
+      errors: 'Server error during merchant order creation',
+      details: error.message
+    });
+  }
+});
+
 
 
 app.get('/getOrder/:_id', async (req, res) => {
