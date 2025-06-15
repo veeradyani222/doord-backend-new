@@ -850,25 +850,34 @@ app.get('/getMerchantById/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Validate the MongoDB ObjectId
+    // ✅ Validate the MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, message: 'Invalid ID format' });
     }
 
-    // Find the merchant by ID
-    const merchant = await Merchant.findById(id);
+    // ✅ Find merchant by ID with population of related documents
+    const merchant = await Merchant.findById(id)
+      .populate('orders')            // Populates orders with full documents
+      .populate('quotations')        // Populates quotations with full documents
+      .populate('services')          // Populates services with full documents
+      .populate('reportsAndIssues'); // Populates reportsAndIssues with full documents
 
+    // ✅ Check if merchant exists
     if (!merchant) {
       return res.status(404).json({ success: false, message: 'Merchant not found' });
     }
 
-    res.status(200).json({ success: true, merchant });
+    // ✅ Remove sensitive fields before sending
+    const merchantData = merchant.toObject();
+    delete merchantData.password;
+    delete merchantData.verificationCode;
+
+    return res.status(200).json({ success: true, merchant: merchantData });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('Error fetching merchant:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-
 
 
 const CounterSchema = new mongoose.Schema({
