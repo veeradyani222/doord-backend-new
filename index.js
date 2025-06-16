@@ -892,53 +892,47 @@ const OrderSchema = new mongoose.Schema({
     type: Number,
     unique: true
   },
-  serviceName: {
-    type: String
+  name: {
+    type: String,
+    required: true
   },
-  email: {
-    type: String
+  address: {
+    type: String,
+    required: true
   },
   phone: {
-    type: String
+    type: String,
+    required: true
   },
-  orgName: {
-    type: String
+  email: {
+    type: String,
+    required: true
   },
   scheduledTime: {
-    type: String
+    type: String,
+    required: true
+  },
+  price: {
+    type: String,
+    required: true
+  },
+  serviceName: {
+    type: String,
+    required: true
   },
   orderStatus: {
     type: String,
     default: 'pending'
   },
-  address: {
-    type: String
-  },
-  masterCard: {
-    type: String
-  },
-  businessName: {
-    type: String,
-    required: true
-  },
-  jobDescription: {
-    type: String
-  },
   paymentStatus: {
     type: String,
     default: 'unpaid'
   },
-  paymentPaid: {
-    type: String
-  },
-    price: {
-    type: String
-  },
-  user_email: {
+  merchant_email: {
     type: String,
     required: true
   },
-  merchant_email: {
+  user_email: {
     type: String,
     required: true
   },
@@ -947,34 +941,32 @@ const OrderSchema = new mongoose.Schema({
     default: Date.now
   },
   userId: {
-  type: mongoose.Schema.Types.ObjectId,
-  ref: 'Users',
-},
-merchantId: {
-  type: mongoose.Schema.Types.ObjectId,
-  ref: 'Merchant',
-}
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Users',
+    required: true
+  },
+  merchantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Merchant',
+    required: true
+  }
 });
 
-
 const Order = mongoose.model('Order', OrderSchema);
+
 
 
 app.post('/addOrder', fetchUser, async (req, res) => {
   try {
     const {
-      serviceName,
-      email,
-      phone,
-      orgName,
-      scheduledTime,
+      name,
       address,
-      masterCard,
-      businessName,
+      phone,
+      email,
+      scheduledTime,
       price,
-      merchant_email,
-      paymentPaid,
-      jobDescription
+      serviceName,
+      merchant_email
     } = req.body;
 
     const merchant = await Merchant.findOne({ email: merchant_email });
@@ -992,22 +984,17 @@ app.post('/addOrder', fetchUser, async (req, res) => {
 
     const newOrder = new Order({
       orderId: counter.seq,
-      serviceName,
-      email,
+      name,
+      address,
       phone,
-      orgName,
+      email,
       scheduledTime,
-      address: address || '',
-      masterCard: masterCard || '',
-      businessName: businessName || '',
-      price: price || '',
-      paymentStatus: paymentPaid ? 'paid' : 'unpaid',
-      paymentPaid: paymentPaid || '',
-      user_email: user.email,
+      price,
+      serviceName,
       merchant_email: merchant.email,
+      user_email: user.email,
       userId: user._id,
-      merchantId: merchant._id,
-      jobDescription: jobDescription || ''
+      merchantId: merchant._id
     });
 
     const savedOrder = await newOrder.save();
@@ -1036,20 +1023,17 @@ app.post('/addOrder', fetchUser, async (req, res) => {
 });
 
 
+
 app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
   try {
     const {
-      serviceName,
-      clientEmail,
-      clientPhone,
-      orgName,
-      scheduledTime,
+      name,
       address,
-      masterCard,
-      businessName,
+      phone,
+      email,
+      scheduledTime,
       price,
-      paymentPaid,
-      jobDescription
+      serviceName
     } = req.body;
 
     const merchant = await Merchant.findOne({ email: req.merchant.email });
@@ -1065,20 +1049,16 @@ app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
 
     const newOrder = new Order({
       orderId: counter.seq,
-      serviceName,
-      email: clientEmail,
-      phone: clientPhone,
-      orgName,
+      name,
+      address,
+      phone,
+      email,
       scheduledTime,
-      address: address || '',
-      masterCard: masterCard || '',
-      price: price || '',
-      businessName: businessName || '',
-      paymentStatus: paymentPaid ? 'paid' : 'unpaid',
-      paymentPaid: paymentPaid || '',
+      price,
+      serviceName,
       merchant_email: merchant.email,
-      merchantId: merchant._id,
-      jobDescription: jobDescription || ''
+      user_email: email,
+      merchantId: merchant._id
     });
 
     const savedOrder = await newOrder.save();
@@ -1103,7 +1083,6 @@ app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
     });
   }
 });
-
 
 
 
