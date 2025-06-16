@@ -893,24 +893,19 @@ const OrderSchema = new mongoose.Schema({
     unique: true
   },
   serviceName: {
-    type: String,
-    required: true
+    type: String
   },
   email: {
-    type: String,
-    required: true
+    type: String
   },
   phone: {
-    type: String,
-    required: true
+    type: String
   },
   orgName: {
-    type: String,
-    required: true
+    type: String
   },
   scheduledTime: {
-    type: String,
-    required: true
+    type: String
   },
   orderStatus: {
     type: String,
@@ -967,20 +962,6 @@ const Order = mongoose.model('Order', OrderSchema);
 
 app.post('/addOrder', fetchUser, async (req, res) => {
   try {
-    const requiredFields = [
-      'serviceName', 'email', 'phone', 'orgName',
-      'scheduledTime', 'businessName', 'merchant_email'
-    ];
-
-    const missingFields = requiredFields.filter(field => !req.body[field]);
-    if (missingFields.length > 0) {
-      return res.status(400).json({
-        success: false,
-        errors: 'Missing required fields',
-        missingFields
-      });
-    }
-
     const {
       serviceName,
       email,
@@ -1003,7 +984,6 @@ app.post('/addOrder', fetchUser, async (req, res) => {
 
     const user = await Users.findOne({ email: req.user.email });
 
-    // Get next orderId
     const counter = await Counter.findByIdAndUpdate(
       { _id: 'orderId' },
       { $inc: { seq: 1 } },
@@ -1019,7 +999,7 @@ app.post('/addOrder', fetchUser, async (req, res) => {
       scheduledTime,
       address: address || '',
       masterCard: masterCard || '',
-      businessName,
+      businessName: businessName || '',
       price: price || '',
       paymentStatus: paymentPaid ? 'paid' : 'unpaid',
       paymentPaid: paymentPaid || '',
@@ -1035,7 +1015,6 @@ app.post('/addOrder', fetchUser, async (req, res) => {
     await Users.findByIdAndUpdate(user._id, { $push: { orders: savedOrder._id } });
     await Merchant.findByIdAndUpdate(merchant._id, { $push: { orders: savedOrder._id } });
 
-    // Optional: Populate user and merchant data in response
     const populatedOrder = await Order.findById(savedOrder._id)
       .populate('userId')
       .populate('merchantId');
@@ -1056,32 +1035,19 @@ app.post('/addOrder', fetchUser, async (req, res) => {
   }
 });
 
+
 app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
   try {
-    const requiredFields = [
-      'serviceName', 'clientEmail', 'clientPhone', 'orgName',
-      'scheduledTime', 'businessName'
-    ];
-
-    const missingFields = requiredFields.filter(field => !req.body[field]);
-    if (missingFields.length > 0) {
-      return res.status(400).json({
-        success: false,
-        errors: 'Missing required fields',
-        missingFields
-      });
-    }
-
     const {
       serviceName,
       clientEmail,
       clientPhone,
       orgName,
-      price,
       scheduledTime,
       address,
       masterCard,
       businessName,
+      price,
       paymentPaid,
       jobDescription
     } = req.body;
@@ -1106,8 +1072,8 @@ app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
       scheduledTime,
       address: address || '',
       masterCard: masterCard || '',
-       price: price || '',
-      businessName,
+      price: price || '',
+      businessName: businessName || '',
       paymentStatus: paymentPaid ? 'paid' : 'unpaid',
       paymentPaid: paymentPaid || '',
       merchant_email: merchant.email,
@@ -1137,6 +1103,7 @@ app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
     });
   }
 });
+
 
 
 
