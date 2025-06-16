@@ -916,7 +916,7 @@ const OrderSchema = new mongoose.Schema({
     type: String,
     default: 'pending'
   },
-  websiteAddress: {
+  address: {
     type: String
   },
   masterCard: {
@@ -987,7 +987,7 @@ app.post('/addOrder', fetchUser, async (req, res) => {
       phone,
       orgName,
       scheduledTime,
-      websiteAddress,
+      address,
       masterCard,
       businessName,
       price,
@@ -1017,7 +1017,7 @@ app.post('/addOrder', fetchUser, async (req, res) => {
       phone,
       orgName,
       scheduledTime,
-      websiteAddress: websiteAddress || '',
+      address: address || '',
       masterCard: masterCard || '',
       businessName,
       price: price || '',
@@ -1079,7 +1079,7 @@ app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
       orgName,
       price,
       scheduledTime,
-      websiteAddress,
+      address,
       masterCard,
       businessName,
       paymentPaid,
@@ -1104,7 +1104,7 @@ app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
       phone: clientPhone,
       orgName,
       scheduledTime,
-      websiteAddress: websiteAddress || '',
+      address: address || '',
       masterCard: masterCard || '',
        price: price || '',
       businessName,
