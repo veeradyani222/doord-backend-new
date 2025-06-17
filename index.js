@@ -1049,17 +1049,28 @@ app.post('/addOrder', fetchUser, async (req, res) => {
 });
 
 
+// ✅ Utility to handle BigInt in any object or array:
+function stringifyBigInts(obj) {
+  return JSON.parse(JSON.stringify(obj, (_, v) => (typeof v === 'bigint' ? v.toString() : v)));
+}
 
 app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
   try {
     const { name, address, phone, email, scheduledTime, price, serviceName } = req.body;
 
+    // Find merchant from token
     const merchant = await Merchant.findOne({ email: req.merchant.email });
-    if (!merchant) return res.status(404).json({ success: false, errors: 'Merchant not found' });
+    if (!merchant) {
+      return res.status(404).json({ success: false, errors: 'Merchant not found' });
+    }
 
+    // Find user by email provided in req.body
     const user = await Users.findOne({ email });
-    if (!user) return res.status(404).json({ success: false, errors: 'User not found with provided email' });
+    if (!user) {
+      return res.status(404).json({ success: false, errors: 'User not found with provided email' });
+    }
 
+    // Get orderId
     const counter = await Counter.findByIdAndUpdate(
       { _id: 'orderId' },
       { $inc: { seq: 1 } },
@@ -1067,7 +1078,7 @@ app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
     );
 
     const newOrder = new Order({
-      orderId: Number(counter.seq), // ✅ FIX applied here
+      orderId: Number(counter.seq), // ✅ Safe conversion here
       name,
       address,
       phone,
@@ -1083,6 +1094,7 @@ app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
 
     const savedOrder = await newOrder.save();
 
+    // Add order ref to both user and merchant
     await Users.findByIdAndUpdate(user._id, { $push: { orders: savedOrder._id } });
     await Merchant.findByIdAndUpdate(merchant._id, { $push: { orders: savedOrder._id } });
 
@@ -1090,11 +1102,20 @@ app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
       .populate('userId')
       .populate('merchantId');
 
-    res.json({ success: true, order: populatedOrder, message: 'Order created by merchant successfully' });
+    // ✅ FINAL UNIVERSAL FIX applied to ALL fields
+    res.json(stringifyBigInts({
+      success: true,
+      order: populatedOrder,
+      message: 'Order created by merchant successfully'
+    }));
 
   } catch (error) {
     console.error("Merchant Order Creation Error:", error);
-    res.status(500).json({ success: false, errors: 'Server error during merchant order creation', details: error.message });
+    res.status(500).json({
+      success: false,
+      errors: 'Server error during merchant order creation',
+      details: error.message
+    });
   }
 });
 
