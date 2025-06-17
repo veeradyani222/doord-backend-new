@@ -1026,27 +1026,28 @@ app.post('/addOrder', fetchUser, async (req, res) => {
 
 app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
   try {
-    const {
-      name,
-      address,
-      phone,
-      email,
-      scheduledTime,
-      price,
-      serviceName
-    } = req.body;
+    const { name, address, phone, email, scheduledTime, price, serviceName } = req.body;
 
+    // Find the merchant by email from token (fetchMerchant middleware)
     const merchant = await Merchant.findOne({ email: req.merchant.email });
     if (!merchant) {
       return res.status(404).json({ success: false, errors: 'Merchant not found' });
     }
 
+    // Find the user by email provided in the request body
+    const user = await Users.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ success: false, errors: 'User not found with provided email' });
+    }
+
+    // Auto-increment orderId using Counter model
     const counter = await Counter.findByIdAndUpdate(
       { _id: 'orderId' },
       { $inc: { seq: 1 } },
       { new: true, upsert: true }
     );
 
+    // Create the new order
     const newOrder = new Order({
       orderId: counter.seq,
       name,
@@ -1057,22 +1058,23 @@ app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
       price,
       serviceName,
       merchant_email: merchant.email,
-      user_email: email,
+      user_email: user.email,
+      userId: user._id, // ✅ FIXED: Providing userId
       merchantId: merchant._id
     });
 
     const savedOrder = await newOrder.save();
 
+    // Push order references to both merchant and user
+    await Users.findByIdAndUpdate(user._id, { $push: { orders: savedOrder._id } });
     await Merchant.findByIdAndUpdate(merchant._id, { $push: { orders: savedOrder._id } });
 
+    // Populate userId and merchantId fields in the response
     const populatedOrder = await Order.findById(savedOrder._id)
+      .populate('userId')
       .populate('merchantId');
 
-    res.json({
-      success: true,
-      order: populatedOrder,
-      message: 'Order created by merchant successfully'
-    });
+    res.json({ success: true, order: populatedOrder, message: 'Order created by merchant successfully' });
 
   } catch (error) {
     console.error("Merchant Order Creation Error:", error.message);
