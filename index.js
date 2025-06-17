@@ -1054,28 +1054,20 @@ app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
   try {
     const { name, address, phone, email, scheduledTime, price, serviceName } = req.body;
 
-    // Find the merchant by email from token (fetchMerchant middleware)
     const merchant = await Merchant.findOne({ email: req.merchant.email });
-    if (!merchant) {
-      return res.status(404).json({ success: false, errors: 'Merchant not found' });
-    }
+    if (!merchant) return res.status(404).json({ success: false, errors: 'Merchant not found' });
 
-    // Find the user by email provided in the request body
     const user = await Users.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ success: false, errors: 'User not found with provided email' });
-    }
+    if (!user) return res.status(404).json({ success: false, errors: 'User not found with provided email' });
 
-    // Auto-increment orderId using Counter model
     const counter = await Counter.findByIdAndUpdate(
       { _id: 'orderId' },
       { $inc: { seq: 1 } },
       { new: true, upsert: true }
     );
 
-    // Create the new order
     const newOrder = new Order({
-      orderId: counter.seq,
+      orderId: Number(counter.seq), // ✅ FIX applied here
       name,
       address,
       phone,
@@ -1085,17 +1077,15 @@ app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
       serviceName,
       merchant_email: merchant.email,
       user_email: user.email,
-      userId: user._id, // ✅ FIXED: Providing userId
+      userId: user._id,
       merchantId: merchant._id
     });
 
     const savedOrder = await newOrder.save();
 
-    // Push order references to both merchant and user
     await Users.findByIdAndUpdate(user._id, { $push: { orders: savedOrder._id } });
     await Merchant.findByIdAndUpdate(merchant._id, { $push: { orders: savedOrder._id } });
 
-    // Populate userId and merchantId fields in the response
     const populatedOrder = await Order.findById(savedOrder._id)
       .populate('userId')
       .populate('merchantId');
@@ -1103,15 +1093,10 @@ app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
     res.json({ success: true, order: populatedOrder, message: 'Order created by merchant successfully' });
 
   } catch (error) {
-    console.error("Merchant Order Creation Error:", error.message);
-    res.status(500).json({
-      success: false,
-      errors: 'Server error during merchant order creation',
-      details: error.message
-    });
+    console.error("Merchant Order Creation Error:", error);
+    res.status(500).json({ success: false, errors: 'Server error during merchant order creation', details: error.message });
   }
 });
-
 
 
 app.get('/getOrder/:_id', async (req, res) => {
