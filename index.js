@@ -17,8 +17,6 @@ const twilio = require('twilio');
 const https = require('https');
 require('dotenv').config();
 
-
-
 app.use(bodyParser.json());
 app.use(express.json({ limit: '10mb' }));
 cloudinary.config({
@@ -136,12 +134,13 @@ const tempUsers = {}; // In-memory store for signup OTPs
 
 
 // Signup endpoint
+// Signup route
 app.post('/signup', async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, uid } = req.body;
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ success: false, errors: "All fields are required." });
+    if (!name || !email || !password || !uid) {
+      return res.status(400).json({ success: false, errors: "All fields (name, email, password, uid) are required." });
     }
 
     const existingUser = await Users.findOne({ email });
@@ -156,6 +155,7 @@ app.post('/signup', async (req, res) => {
       name,
       email,
       password,
+      uid, // ✅ Store uid
       otp,
       createdAt: Date.now(),
     };
@@ -190,7 +190,7 @@ app.post('/signup', async (req, res) => {
   }
 });
 
-
+// OTP Verification route
 app.post('/verify-otp', async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -208,6 +208,7 @@ app.post('/verify-otp', async (req, res) => {
       name: tempUser.name || '',
       email: tempUser.email || '',
       password: tempUser.password || '', // ❗ Hash this in production
+      uid: tempUser.uid || '', // ✅ Save uid in DB
       verificationCode: otp,
       isVerified: true,
       dateOfBirth: tempUser.dateOfBirth || '',
@@ -215,7 +216,6 @@ app.post('/verify-otp', async (req, res) => {
       permanentAddress: tempUser.permanentAddress || '',
       city: tempUser.city || '',
       image_url: tempUser.image_url || '',
-      uid: tempUser.uid || '',
       postalCode: tempUser.postalCode || 0n,
       country: tempUser.country || '',
       currency: tempUser.currency || '',
@@ -260,7 +260,7 @@ app.post('/verify-otp', async (req, res) => {
   }
 });
 
-// Login endpoint
+// Login route
 app.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -269,22 +269,24 @@ app.post('/login', async (req, res) => {
     if (!user) return res.status(400).json({ success: false, errors: "Wrong Email ID" });
     if (password !== user.password) return res.status(400).json({ success: false, errors: "Wrong Password" });
 
-    // Include both _id AND email in the token
     const tokenData = { 
       user: { 
-        _id: user._id,  // Using _id instead of id
-        email: user.email
+        _id: user._id,
+        email: user.email,
+        uid: user.uid // ✅ Include uid in token if desired
       } 
     };
     
     const token = jwt.sign(tokenData, 'secret_doord_key', { expiresIn: '730h' });
+    
     res.json({ 
       success: true, 
       token,
       user: {
         _id: user._id,
         email: user.email,
-        name: user.name
+        name: user.name,
+        uid: user.uid // ✅ Return uid in response
       }
     });
 
@@ -520,15 +522,17 @@ const Merchant = mongoose.model('Merchant', MerchantSchema);
 const tempMerchants = {}; // In-memory store for signup OTPs
 const forgotPasswordMerchantOtps = {}; // Store OTPs for password reset
 
+// Merchant Signup Route
 app.post('/merchant/signup', upload.single('image'), async (req, res) => {
   try {
     const {
       firstName, lastName, email, password,
-      companyName, address, province, city, serviceType
+      companyName, address, province, city, serviceType,
+      uid, place_id // ✅ uid & place_id received
     } = req.body;
 
-    if (!firstName || !lastName || !email || !password || !companyName || !address || !province || !city || !serviceType) {
-      return res.status(400).json({ success: false, errors: "All fields are required." });
+    if (!firstName || !lastName || !email || !password || !companyName || !address || !province || !city || !serviceType || !uid || !place_id) {
+      return res.status(400).json({ success: false, errors: "All fields are required, including uid and place_id." });
     }
 
     const existingMerchant = await Merchant.findOne({ email });
@@ -542,7 +546,6 @@ app.post('/merchant/signup', upload.single('image'), async (req, res) => {
       serviceImageUrl = result.secure_url;
     }
 
-    // ✅ Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     tempMerchants[email] = {
@@ -555,6 +558,8 @@ app.post('/merchant/signup', upload.single('image'), async (req, res) => {
       province,
       city,
       serviceType,
+      uid,       // ✅ Store uid
+      place_id,  // ✅ Store place_id
       serviceImage: serviceImageUrl,
       otp,
       createdAt: Date.now(),
@@ -590,6 +595,8 @@ app.post('/merchant/signup', upload.single('image'), async (req, res) => {
   }
 });
 
+
+// Merchant OTP Verification Route
 app.post('/merchant/verify-otp', async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -610,8 +617,8 @@ app.post('/merchant/verify-otp', async (req, res) => {
       password: tempMerchant.password || '', // ❗ Hash this in production
       verificationCode: otp,
       isVerified: true,
-      uid: tempMerchant.uid || '',
-      place_id: tempMerchant.place_id || '',
+      uid: tempMerchant.uid || '',         // ✅ Save uid
+      place_id: tempMerchant.place_id || '', // ✅ Save place_id
       companyName: tempMerchant.companyName || '',
       address: tempMerchant.address || '',
       permanent_address: tempMerchant.permanent_address || '',
@@ -668,8 +675,7 @@ app.post('/merchant/verify-otp', async (req, res) => {
 });
 
 
-
-
+// Merchant Login Route
 app.post('/merchant/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -683,21 +689,41 @@ app.post('/merchant/login', async (req, res) => {
       return res.status(400).json({ success: false, errors: "Please verify your email first." });
     }
 
-    // In production, use bcrypt.compare
+    // ❗ Hash password check required in production
     if (password !== merchant.password) {
       return res.status(400).json({ success: false, errors: "Wrong Password" });
     }
 
-    const data = { merchant: { id: merchant.id } };
+    const data = {
+      merchant: {
+        id: merchant._id,
+        email: merchant.email,
+        uid: merchant.uid,        // ✅ Include uid
+        place_id: merchant.place_id // ✅ Include place_id
+      }
+    };
+
     const token = jwt.sign(data, 'secret_doord_merchant_key', { expiresIn: '730h' });
 
-    res.json({ success: true, token });
+    res.json({
+      success: true,
+      token,
+      merchant: {
+        id: merchant._id,
+        email: merchant.email,
+        firstName: merchant.firstName,
+        lastName: merchant.lastName,
+        uid: merchant.uid,          // ✅ Return uid in response
+        place_id: merchant.place_id // ✅ Return place_id in response
+      }
+    });
 
   } catch (error) {
     console.error("Merchant Login Error:", error);
     res.status(500).json({ error: "Merchant login failed." });
   }
 });
+
 
 const fetchMerchant = async (req, res, next) => {
   const token = req.header('merchant-auth-token');
@@ -1455,8 +1481,6 @@ app.post('/add-report', fetchUser, async (req, res) => {
 
     const newReport = new ReportsAndIssues({
       name: req.user.name,
-      email: req.user.email,
-      orderId,
       issueType,
       description,
       attachment,
@@ -1538,7 +1562,6 @@ app.get('/merchant/my-reports', fetchMerchant, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch reports" });
   }
 });
-
 
 app.post('/reports-by-email', async (req, res) => {
   try {

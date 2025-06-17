@@ -19,7 +19,7 @@ https://doord-backend-new.onrender.com/
 
 | Header Name           | Value                                  | Required |
 |-----------------------|----------------------------------------|----------|
-| `auth-token`          | JWT token (for user-protected routes)  | ✅       |
+| `auth-token`          | JWT token (for user-protected routes)  | ✅       | 
 | `merchant-auth-token` | JWT token (for merchant-protected routes) | ✅       |
 
 ---
