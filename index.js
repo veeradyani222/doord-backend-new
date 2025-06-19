@@ -976,7 +976,7 @@ app.post('/addOrder', fetchUser, async (req, res) => {
       // ✅ New fields populated
       user_uid: user.uid,
       merchant_uid: merchant.uid,
-      merchant_place_id: merchant.placeId
+      merchant_place_id: merchant.place_id
     });
 
     const savedOrder = await newOrder.save();
@@ -1034,7 +1034,7 @@ app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
       // ✅ New fields populated
       user_uid: user.uid,
       merchant_uid: merchant.uid,
-      merchant_place_id: merchant.placeId
+      merchant_place_id: merchant.place_id
     });
 
     const savedOrder = await newOrder.save();
@@ -1409,7 +1409,11 @@ const ReportsAndIssuesSchema = new mongoose.Schema({
     required: true,
     refPath: 'reporterType'
   },
-  reporter_email: { type: String, required: true }
+  reporter_email: { type: String, required: true },
+
+  // ✅ NEW FIELDS
+  reporter_uid: { type: String, required: true },
+  reporter_place_id: { type: String } // Optional: Only present for merchants
 });
 
 const ReportsAndIssues = mongoose.model('ReportsAndIssues', ReportsAndIssuesSchema);
@@ -1419,21 +1423,25 @@ app.post('/add-report', fetchUser, async (req, res) => {
   try {
     const { orderId, issueType, description, attachment } = req.body;
 
+    const user = await Users.findById(req.user._id);
+
     const newReport = new ReportsAndIssues({
-      name: req.user.name,
+      name: user.name,
+      email: user.email,
+      orderId,
       issueType,
       description,
       attachment,
-      reporterType: 'User', // Hardcoded for this route
-      reporterId: req.user._id, // User's ObjectId
-      reporter_email: req.user.email
+      reporterType: 'Users', // ✅ Match your User model name in MongoDB exactly
+      reporterId: user._id,
+      reporter_email: user.email,
+      reporter_uid: user.uid // ✅ Added reporter_uid
     });
 
     await newReport.save();
 
-    // Add to user's reports array
-    req.user.reportsAndIssues.push(newReport._id);
-    await req.user.save();
+    user.reportsAndIssues.push(newReport._id);
+    await user.save();
 
     res.status(201).json({
       success: true,
@@ -1447,27 +1455,31 @@ app.post('/add-report', fetchUser, async (req, res) => {
   }
 });
 
+
 app.post('/merchant/add-report', fetchMerchant, async (req, res) => {
   try {
     const { orderId, issueType, description, attachment } = req.body;
 
+    const merchant = await Merchant.findById(req.merchant._id);
+
     const newReport = new ReportsAndIssues({
-      name: `${req.merchant.firstName} ${req.merchant.lastName}`,
-      email: req.merchant.email,
+      name: `${merchant.firstName} ${merchant.lastName}`,
+      email: merchant.email,
       orderId,
       issueType,
       description,
       attachment,
-      reporterType: 'Merchant', // Hardcoded for this route
-      reporterId: req.merchant._id, // Merchant's ObjectId
-      reporter_email: req.merchant.email
+      reporterType: 'Merchant', // ✅ Match your Merchant model name in MongoDB exactly
+      reporterId: merchant._id,
+      reporter_email: merchant.email,
+      reporter_uid: merchant.uid, // ✅ Added reporter_uid
+      reporter_place_id: merchant.place_id // ✅ Added reporter_place_id
     });
 
     await newReport.save();
 
-    // Add to merchant's reports array
-    req.merchant.reportsAndIssues.push(newReport._id);
-    await req.merchant.save();
+    merchant.reportsAndIssues.push(newReport._id);
+    await merchant.save();
 
     res.status(201).json({
       success: true,
@@ -1672,15 +1684,26 @@ const QuotationSchema = new mongoose.Schema({
   time: { type: String, required: true },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Users', required: true },
   merchantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Merchant', required: true },
+
+  // ✅ New fields added
+  user_uid: { type: String, required: true },
+  merchant_uid: { type: String, required: true },
+  merchant_place_id: { type: String, required: true },
+
   status: { type: String, enum: ['pending', 'accepted', 'rejected', 'completed'], default: 'pending' },
   createdAt: { type: Date, default: Date.now }
 });
 
 const Quotation = mongoose.model('Quotation', QuotationSchema);
-
 app.post('/addQuotation', fetchUser, async (req, res) => {
   try {
     const { work_assignment, description, address, date, time, merchantId } = req.body;
+
+    const user = await Users.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const merchant = await Merchant.findById(merchantId);
+    if (!merchant) return res.status(404).json({ error: 'Merchant not found' });
 
     const newQuotation = new Quotation({
       work_assignment,
@@ -1688,25 +1711,23 @@ app.post('/addQuotation', fetchUser, async (req, res) => {
       address,
       date,
       time,
-      userId: req.user._id,
-      merchantId
+      userId: user._id,
+      merchantId: merchant._id,
+
+      // ✅ Adding new required fields from fetched user/merchant
+      user_uid: user.uid,
+      merchant_uid: merchant.uid,
+      merchant_place_id: merchant.place_id
     });
 
     const savedQuotation = await newQuotation.save();
 
-    // Push only the ID to User & Merchant
-    await Users.findByIdAndUpdate(
-      req.user._id,
-      { $push: { quotations: savedQuotation._id } }
-    );
-
-    await Merchant.findByIdAndUpdate(
-      merchantId,
-      { $push: { quotations: savedQuotation._id } }
-    );
+    await Users.findByIdAndUpdate(user._id, { $push: { quotations: savedQuotation._id } });
+    await Merchant.findByIdAndUpdate(merchant._id, { $push: { quotations: savedQuotation._id } });
 
     res.status(201).json(savedQuotation);
   } catch (error) {
+    console.error("Quotation Error:", error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1795,50 +1816,31 @@ app.put('/quotation/user/edit/:id', fetchUser, async (req, res) => {
 //SERVICES
 
 const ServiceSchema = new mongoose.Schema({
-  jobTitle: {
-    type: String,
-    required: true
-  },
-  jobCategory: {
-    type: String,
-    required: true
-  },
-  jobDescription: {
-    type: String,
-    required: true
-  },
-    time: {
-    type: String
-  },
-  price: {
-    type: Number,
-    required: true
-  },
-  discount: {
-    type: Number,
-    default: 0
-  },
-  image: {
-    type: String
-  },
-  merchant: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Merchant',
-    required: true
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
+  jobTitle: { type: String, required: true },
+  jobCategory: { type: String, required: true },
+  jobDescription: { type: String, required: true },
+  time: { type: String },
+  price: { type: Number, required: true },
+  discount: { type: Number, default: 0 },
+  image: { type: String },
+
+  merchant: { type: mongoose.Schema.Types.ObjectId, ref: 'Merchant', required: true },
+
+  // ✅ NEW FIELDS ADDED
+  merchant_uid: { type: String, required: true },
+  merchant_place_id: { type: String, required: true },
+
+  createdAt: { type: Date, default: Date.now }
 });
 
-const Service  = mongoose.model('Service',  ServiceSchema );
+const Service = mongoose.model('Service', ServiceSchema);
 
-
-// Add a new service (merchant auth required)
 app.post('/addService', fetchMerchant, async (req, res) => {
   try {
     const { jobTitle, jobCategory, jobDescription, price, discount, image, time } = req.body;
+
+    const merchant = await Merchant.findById(req.merchant._id);
+    if (!merchant) return res.status(404).json({ error: 'Merchant not found' });
 
     const serviceData = {
       jobTitle,
@@ -1847,7 +1849,11 @@ app.post('/addService', fetchMerchant, async (req, res) => {
       price,
       discount,
       image,
-      merchant: req.merchant._id
+      merchant: merchant._id,
+
+      // ✅ NEW FIELDS
+      merchant_uid: merchant.uid,
+      merchant_place_id: merchant.place_id
     };
 
     if (time) {
@@ -1858,12 +1864,8 @@ app.post('/addService', fetchMerchant, async (req, res) => {
     const savedService = await service.save();
 
     // Push service ID to merchant's services array
-    await Merchant.findByIdAndUpdate(
-      req.merchant._id,
-      { $push: { services: savedService._id } }
-    );
+    await Merchant.findByIdAndUpdate(merchant._id, { $push: { services: savedService._id } });
 
-    // Populate the merchant field before sending response
     const populatedService = await Service.findById(savedService._id).populate('merchant');
 
     res.json({
@@ -1875,7 +1877,6 @@ app.post('/addService', fetchMerchant, async (req, res) => {
     res.status(500).json({ error: 'Server error', details: error.message });
   }
 });
-
 
 
 // Edit service (merchant auth - can only edit own services)
