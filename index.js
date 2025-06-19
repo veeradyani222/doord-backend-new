@@ -914,91 +914,42 @@ const CounterSchema = new mongoose.Schema({
 const Counter = mongoose.model('Counter', CounterSchema);
 
 const OrderSchema = new mongoose.Schema({
-  orderId: {
-    type: Number,
-    unique: true
-  },
-  name: {
-    type: String,
-    required: true
-  },
-  address: {
-    type: String,
-    required: true
-  },
-  phone: {
-    type: String,
-    required: true
-  },
-  email: {
-    type: String,
-    required: true
-  },
-  scheduledTime: {
-    type: String,
-    required: true
-  },
-  price: {
-    type: String,
-    required: true
-  },
-  serviceName: {
-    type: String,
-    required: true
-  },
-  orderStatus: {
-    type: String,
-    default: 'pending'
-  },
-  paymentStatus: {
-    type: String,
-    default: 'unpaid'
-  },
-  merchant_email: {
-    type: String,
-    required: true
-  },
-  user_email: {
-    type: String,
-    required: true
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Users',
-    required: true
-  },
-  merchantId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Merchant',
-    required: true
-  }
+  orderId: { type: Number, unique: true },
+  name: { type: String, required: true },
+  address: { type: String, required: true },
+  phone: { type: String, required: true },
+  email: { type: String, required: true },
+  scheduledTime: { type: String, required: true },
+  price: { type: String, required: true },
+  serviceName: { type: String, required: true },
+  orderStatus: { type: String, default: 'pending' },
+  paymentStatus: { type: String, default: 'unpaid' },
+  merchant_email: { type: String, required: true },
+  user_email: { type: String, required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Users', required: true },
+  merchantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Merchant', required: true },
+  
+  // ✅ Newly added fields
+  user_uid: { type: String, required: true },
+  merchant_uid: { type: String, required: true },
+  merchant_place_id: { type: String, required: true },
+
+  createdAt: { type: Date, default: Date.now }
 });
 
 const Order = mongoose.model('Order', OrderSchema);
 
 
 
+
 app.post('/addOrder', fetchUser, async (req, res) => {
   try {
     const {
-      name,
-      address,
-      phone,
-      email,
-      scheduledTime,
-      price,
-      serviceName,
-      merchant_email
+      name, address, phone, email, scheduledTime, price, serviceName, merchant_email
     } = req.body;
 
     const merchant = await Merchant.findOne({ email: merchant_email });
-    if (!merchant) {
-      return res.status(404).json({ success: false, errors: 'Merchant not found' });
-    }
+    if (!merchant) return res.status(404).json({ success: false, errors: 'Merchant not found' });
 
     const user = await Users.findOne({ email: req.user.email });
 
@@ -1020,7 +971,12 @@ app.post('/addOrder', fetchUser, async (req, res) => {
       merchant_email: merchant.email,
       user_email: user.email,
       userId: user._id,
-      merchantId: merchant._id
+      merchantId: merchant._id,
+
+      // ✅ New fields populated
+      user_uid: user.uid,
+      merchant_uid: merchant.uid,
+      merchant_place_id: merchant.placeId
     });
 
     const savedOrder = await newOrder.save();
@@ -1028,23 +984,14 @@ app.post('/addOrder', fetchUser, async (req, res) => {
     await Users.findByIdAndUpdate(user._id, { $push: { orders: savedOrder._id } });
     await Merchant.findByIdAndUpdate(merchant._id, { $push: { orders: savedOrder._id } });
 
-    const populatedOrder = await Order.findById(savedOrder._id)
-      .populate('userId')
-      .populate('merchantId');
-
     res.json({
       success: true,
-      order: populatedOrder,
+      order: savedOrder,
       message: 'Order created successfully'
     });
-
   } catch (error) {
     console.error("Order Creation Error:", error.message);
-    res.status(500).json({
-      success: false,
-      errors: 'Server error during order creation',
-      details: error.message
-    });
+    res.status(500).json({ success: false, errors: 'Server error', details: error.message });
   }
 });
 
@@ -1058,19 +1005,12 @@ app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
   try {
     const { name, address, phone, email, scheduledTime, price, serviceName } = req.body;
 
-    // Find merchant from token
     const merchant = await Merchant.findOne({ email: req.merchant.email });
-    if (!merchant) {
-      return res.status(404).json({ success: false, errors: 'Merchant not found' });
-    }
+    if (!merchant) return res.status(404).json({ success: false, errors: 'Merchant not found' });
 
-    // Find user by email provided in req.body
     const user = await Users.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ success: false, errors: 'User not found with provided email' });
-    }
+    if (!user) return res.status(404).json({ success: false, errors: 'User not found with provided email' });
 
-    // Get orderId
     const counter = await Counter.findByIdAndUpdate(
       { _id: 'orderId' },
       { $inc: { seq: 1 } },
@@ -1078,7 +1018,7 @@ app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
     );
 
     const newOrder = new Order({
-      orderId: Number(counter.seq), // ✅ Safe conversion here
+      orderId: Number(counter.seq),
       name,
       address,
       phone,
@@ -1089,33 +1029,27 @@ app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
       merchant_email: merchant.email,
       user_email: user.email,
       userId: user._id,
-      merchantId: merchant._id
+      merchantId: merchant._id,
+
+      // ✅ New fields populated
+      user_uid: user.uid,
+      merchant_uid: merchant.uid,
+      merchant_place_id: merchant.placeId
     });
 
     const savedOrder = await newOrder.save();
 
-    // Add order ref to both user and merchant
     await Users.findByIdAndUpdate(user._id, { $push: { orders: savedOrder._id } });
     await Merchant.findByIdAndUpdate(merchant._id, { $push: { orders: savedOrder._id } });
 
-    const populatedOrder = await Order.findById(savedOrder._id)
-      .populate('userId')
-      .populate('merchantId');
-
-    // ✅ FINAL UNIVERSAL FIX applied to ALL fields
     res.json(stringifyBigInts({
       success: true,
-      order: populatedOrder,
+      order: savedOrder,
       message: 'Order created by merchant successfully'
     }));
-
   } catch (error) {
     console.error("Merchant Order Creation Error:", error);
-    res.status(500).json({
-      success: false,
-      errors: 'Server error during merchant order creation',
-      details: error.message
-    });
+    res.status(500).json({ success: false, errors: 'Server error', details: error.message });
   }
 });
 
