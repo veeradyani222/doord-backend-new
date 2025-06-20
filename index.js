@@ -1850,7 +1850,6 @@ app.post('/addService', fetchMerchant, async (req, res) => {
       discount,
       image,
       merchant: merchant._id,
-
       // ✅ NEW FIELDS
       merchant_uid: merchant.uid,
       merchant_place_id: merchant.place_id
@@ -1947,7 +1946,7 @@ app.get('/allServices/jobTitle/:title', async (req, res) => {
     const title = req.params.title;
 
     const services = await Service.find({ jobTitle: title })
-      .populate('merchant', 'companyName address city province');
+      .populate('merchant');
 
     res.status(200).json({
       success: true,
@@ -1968,7 +1967,7 @@ app.get('/allServices/jobCategory/:category', async (req, res) => {
     const category = req.params.category;
 
     const services = await Service.find({ jobCategory: category })
-      .populate('merchant', 'companyName address city province');
+      .populate('merchant');
 
     res.status(200).json({
       success: true,
@@ -1999,7 +1998,7 @@ app.get('/searchServices', async (req, res) => {
         { jobTitle: { $regex: query, $options: 'i' } },
         { jobCategory: { $regex: query, $options: 'i' } }
       ]
-    }).populate('merchant', 'companyName');
+    }).populate('merchant');
 
     res.json({
       success: true,
