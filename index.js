@@ -1684,15 +1684,14 @@ const QuotationSchema = new mongoose.Schema({
   time: { type: String, required: true },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Users', required: true },
   merchantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Merchant', required: true },
-
-  // ✅ New fields added
   user_uid: { type: String, required: true },
   merchant_uid: { type: String, required: true },
   merchant_place_id: { type: String, required: true },
-
   status: { type: String, enum: ['pending', 'accepted', 'rejected', 'completed'], default: 'pending' },
+  accepted: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
+
 
 const Quotation = mongoose.model('Quotation', QuotationSchema);
 app.post('/addQuotation', fetchUser, async (req, res) => {
@@ -1812,6 +1811,72 @@ app.put('/quotation/user/edit/:id', fetchUser, async (req, res) => {
   }
 });
 
+app.post('/acceptQuotation/:id', async (req, res) => {
+  try {
+    const quotationId = req.params.id;
+
+    // Find the quotation
+    const quotation = await Quotation.findById(quotationId).populate('userId').populate('merchantId');
+    if (!quotation) return res.status(404).json({ success: false, message: 'Quotation not found' });
+
+    // Mark as accepted
+    quotation.accepted = true;
+    quotation.status = 'accepted';
+    await quotation.save();
+
+    // Get user and merchant
+    const user = quotation.userId;
+    const merchant = quotation.merchantId;
+
+    // Generate new orderId
+    const counter = await Counter.findByIdAndUpdate(
+      { _id: 'orderId' },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+
+    // Create order from quotation data
+    const newOrder = new Order({
+      orderId: counter.seq,
+      name: user.name || 'User',
+      address: quotation.address,
+      phone: user.phone || '',
+      email: user.email,
+      scheduledTime: `${quotation.date} at ${quotation.time}`,
+      price: 0, // you can adjust this if quotation has pricing info
+      serviceName: quotation.work_assignment,
+
+      // Emails
+      merchant_email: merchant.email,
+      user_email: user.email,
+
+      // IDs
+      userId: user._id,
+      merchantId: merchant._id,
+
+      // UIDs
+      user_uid: quotation.user_uid,
+      merchant_uid: quotation.merchant_uid,
+      merchant_place_id: quotation.merchant_place_id
+    });
+
+    const savedOrder = await newOrder.save();
+
+    // Push order ID to both user and merchant
+    await Users.findByIdAndUpdate(user._id, { $push: { orders: savedOrder._id } });
+    await Merchant.findByIdAndUpdate(merchant._id, { $push: { orders: savedOrder._id } });
+
+    return res.json({
+      success: true,
+      message: 'Quotation accepted and order created successfully.',
+      order: savedOrder
+    });
+
+  } catch (error) {
+    console.error("Accept Quotation Error:", error.message);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
 
 //SERVICES
 
