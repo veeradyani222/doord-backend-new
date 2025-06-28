@@ -1815,35 +1815,44 @@ app.post('/acceptQuotation/:id', async (req, res) => {
   try {
     const quotationId = req.params.id;
 
-    // Find the quotation
-    const quotation = await Quotation.findById(quotationId).populate('userId').populate('merchantId');
-    if (!quotation) return res.status(404).json({ success: false, message: 'Quotation not found' });
+    // 1. Get the quotation and ensure it exists
+    const quotation = await Quotation.findById(quotationId);
+    if (!quotation) {
+      return res.status(404).json({ success: false, message: 'Quotation not found' });
+    }
 
-    // Mark as accepted
+    // 2. Fetch full user and merchant using IDs from quotation
+    const user = await Users.findById(quotation.userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const merchant = await Merchant.findById(quotation.merchantId);
+    if (!merchant) {
+      return res.status(404).json({ success: false, message: 'Merchant not found' });
+    }
+
+    // 3. Mark quotation as accepted
     quotation.accepted = true;
     quotation.status = 'accepted';
     await quotation.save();
 
-    // Get user and merchant
-    const user = quotation.userId;
-    const merchant = quotation.merchantId;
-
-    // Generate new orderId
+    // 4. Generate new orderId
     const counter = await Counter.findByIdAndUpdate(
       { _id: 'orderId' },
       { $inc: { seq: 1 } },
       { new: true, upsert: true }
     );
 
-    // Create order from quotation data
+    // 5. Create new Order using quotation + fetched user/merchant
     const newOrder = new Order({
       orderId: counter.seq,
-      name: user.name || 'User',
+      name: user.name,
       address: quotation.address,
-      phone: user.phone || '',
+      phone: user.phone,
       email: user.email,
-      scheduledTime: `${quotation.date} at ${quotation.time}`,
-      price: 0, // you can adjust this if quotation has pricing info
+      scheduledTime: `${quotation.date.split('T')[0]} at ${quotation.time}`, // formatted like: 2025-05-22 at 14:00
+      price: 0, // If quotation doesn't have price, leave as 0 or update logic
       serviceName: quotation.work_assignment,
 
       // Emails
@@ -1862,10 +1871,11 @@ app.post('/acceptQuotation/:id', async (req, res) => {
 
     const savedOrder = await newOrder.save();
 
-    // Push order ID to both user and merchant
+    // 6. Link order to user and merchant
     await Users.findByIdAndUpdate(user._id, { $push: { orders: savedOrder._id } });
     await Merchant.findByIdAndUpdate(merchant._id, { $push: { orders: savedOrder._id } });
 
+    // 7. Return response
     return res.json({
       success: true,
       message: 'Quotation accepted and order created successfully.',
@@ -1874,9 +1884,14 @@ app.post('/acceptQuotation/:id', async (req, res) => {
 
   } catch (error) {
     console.error("Accept Quotation Error:", error.message);
-    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
   }
 });
+
 
 //SERVICES
 
