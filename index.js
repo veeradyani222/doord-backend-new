@@ -917,7 +917,7 @@ const OrderSchema = new mongoose.Schema({
   orderId: { type: Number, unique: true },
   name: { type: String, required: true },
   address: { type: String, required: true },
-  phone: { type: String, required: true },
+  phone: { type: String, required: false},
   email: { type: String, required: true },
   scheduledTime: { type: String, required: true },
   price: { type: String, required: true },
@@ -945,7 +945,7 @@ const Order = mongoose.model('Order', OrderSchema);
 app.post('/addOrder', fetchUser, async (req, res) => {
   try {
     const {
-      name, address, phone, email, scheduledTime, price, serviceName, merchant_email
+      name, address, email, scheduledTime, price, serviceName, merchant_email
     } = req.body;
 
     const merchant = await Merchant.findOne({ email: merchant_email });
@@ -1003,7 +1003,7 @@ function stringifyBigInts(obj) {
 
 app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
   try {
-    const { name, address, phone, email, scheduledTime, price, serviceName } = req.body;
+    const { name, address, email, scheduledTime, price, serviceName } = req.body;
 
     const merchant = await Merchant.findOne({ email: req.merchant.email });
     if (!merchant) return res.status(404).json({ success: false, errors: 'Merchant not found' });
