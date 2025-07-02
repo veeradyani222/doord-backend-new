@@ -996,6 +996,75 @@ app.post('/addOrder', fetchUser, async (req, res) => {
 });
 
 
+app.post('/addOrder/new', fetchUser, async (req, res) => {
+  try {
+    const {
+      name,
+      address,
+      email,
+      scheduledTime,
+      price,
+      serviceName,
+      merchant_email,
+      merchant_id  // 👈 also accepting merchant_id now
+    } = req.body;
+
+    const merchant = await Merchant.findOne({ email: merchant_email });
+    if (!merchant) return res.status(404).json({ success: false, errors: 'Merchant not found' });
+
+    const user = await Users.findOne({ email: req.user.email });
+    if (!user) return res.status(404).json({ success: false, errors: 'User not found' });
+
+    const counter = await Counter.findByIdAndUpdate(
+      { _id: 'orderId' },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+
+    const newOrder = new Order({
+      orderId: counter.seq,
+      name,
+      address,
+      phone: user.phone, // assuming user's phone
+      email,
+      scheduledTime,
+      price,
+      serviceName,
+      merchant_email: merchant.email,
+      user_email: user.email,
+      userId: user._id,
+      merchantId: merchant._id,
+
+      // ✅ New fields
+      user_uid: user.uid,
+      merchant_uid: merchant.uid,
+      merchant_place_id: merchant.place_id
+    });
+
+    const savedOrder = await newOrder.save();
+
+    // ✅ Add order to user
+    await Users.findByIdAndUpdate(user._id, {
+      $push: { orders: savedOrder._id }
+    });
+
+    // ✅ Add order to merchant using merchant_id from body
+    await Merchant.findByIdAndUpdate(merchant_id, {
+      $push: { orders: savedOrder._id }
+    });
+
+    res.json({
+      success: true,
+      order: savedOrder,
+      message: 'Order created successfully'
+    });
+  } catch (error) {
+    console.error("Order Creation Error:", error.message);
+    res.status(500).json({ success: false, errors: 'Server error', details: error.message });
+  }
+});
+
+
 // ✅ Utility to handle BigInt in any object or array:
 function stringifyBigInts(obj) {
   return JSON.parse(JSON.stringify(obj, (_, v) => (typeof v === 'bigint' ? v.toString() : v)));
