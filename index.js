@@ -1006,21 +1006,28 @@ app.post('/addOrder/new', fetchUser, async (req, res) => {
       price,
       serviceName,
       merchant_email,
-      merchant_id  // 👈 also accepting merchant_id now
+      merchant_id // optional
     } = req.body;
 
-    const merchant = await Merchant.findOne({ email: merchant_email });
-    if (!merchant) return res.status(404).json({ success: false, errors: 'Merchant not found' });
-
+    // ✅ Fetch user from token
     const user = await Users.findOne({ email: req.user.email });
     if (!user) return res.status(404).json({ success: false, errors: 'User not found' });
 
+    // ✅ Fetch merchant by ID or email
+    const merchant = merchant_id
+      ? await Merchant.findById(merchant_id)
+      : await Merchant.findOne({ email: merchant_email });
+
+    if (!merchant) return res.status(404).json({ success: false, errors: 'Merchant not found' });
+
+    // ✅ Auto-increment orderId
     const counter = await Counter.findByIdAndUpdate(
       { _id: 'orderId' },
       { $inc: { seq: 1 } },
       { new: true, upsert: true }
     );
 
+    // ✅ Create new order
     const newOrder = new Order({
       orderId: counter.seq,
       name,
@@ -1035,7 +1042,7 @@ app.post('/addOrder/new', fetchUser, async (req, res) => {
       userId: user._id,
       merchantId: merchant._id,
 
-      // ✅ New fields
+      // Optional metadata
       user_uid: user.uid,
       merchant_uid: merchant.uid,
       merchant_place_id: merchant.place_id
@@ -1048,8 +1055,8 @@ app.post('/addOrder/new', fetchUser, async (req, res) => {
       $push: { orders: savedOrder._id }
     });
 
-    // ✅ Add order to merchant using merchant_id from body
-    await Merchant.findByIdAndUpdate(merchant_id, {
+    // ✅ Add order to merchant
+    await Merchant.findByIdAndUpdate(merchant._id, {
       $push: { orders: savedOrder._id }
     });
 
@@ -1058,11 +1065,13 @@ app.post('/addOrder/new', fetchUser, async (req, res) => {
       order: savedOrder,
       message: 'Order created successfully'
     });
+
   } catch (error) {
     console.error("Order Creation Error:", error.message);
     res.status(500).json({ success: false, errors: 'Server error', details: error.message });
   }
 });
+
 
 
 // ✅ Utility to handle BigInt in any object or array:
