@@ -1009,8 +1009,8 @@ app.post('/addOrder/new', fetchUser, async (req, res) => {
       merchant_id // optional
     } = req.body;
 
-    // ✅ Fetch user from token
-    const user = await Users.findOne({ email: req.user.email });
+    // ✅ Fetch user from token and include phone in selection
+    const user = await Users.findOne({ email: req.user.email }).select('email phone uid _id');
     if (!user) return res.status(404).json({ success: false, errors: 'User not found' });
 
     // ✅ Fetch merchant by ID or email
@@ -1032,7 +1032,7 @@ app.post('/addOrder/new', fetchUser, async (req, res) => {
       orderId: counter.seq,
       name,
       address,
-      phone: user.phone, // assuming user's phone
+      phone: user.phone, // ✅ now this will be populated correctly
       email,
       scheduledTime,
       price,
@@ -1071,6 +1071,7 @@ app.post('/addOrder/new', fetchUser, async (req, res) => {
     res.status(500).json({ success: false, errors: 'Server error', details: error.message });
   }
 });
+
 
 
 
