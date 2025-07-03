@@ -1002,6 +1002,7 @@ app.post('/addOrder/new', fetchUser, async (req, res) => {
       name,
       address,
       email,
+      phone,
       scheduledTime,
       price,
       serviceName,
@@ -1032,7 +1033,7 @@ app.post('/addOrder/new', fetchUser, async (req, res) => {
       orderId: counter.seq,
       name,
       address,
-      phone: user.phone, // ✅ now this will be populated correctly
+      phone, // ✅ now this will be populated correctly
       email,
       scheduledTime,
       price,
@@ -1082,7 +1083,7 @@ function stringifyBigInts(obj) {
 
 app.post('/merchant/addOrder', fetchMerchant, async (req, res) => {
   try {
-    const { name, address, email, scheduledTime, price, serviceName } = req.body;
+    const { name, address, email, scheduledTime, price, phone, serviceName } = req.body;
 
     const merchant = await Merchant.findOne({ email: req.merchant.email });
     if (!merchant) return res.status(404).json({ success: false, errors: 'Merchant not found' });
